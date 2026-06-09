@@ -5,13 +5,17 @@
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxvAkJM8wvA9zZWeRKIndgkWWb8eg5JvdeGofLWJW6TRovTr91RhHYjonq7njciTkj0YA/exec';
 
 // ===== FORMAT RUPIAH =====
+// Mengubah angka jadi format Rupiah.
+// Contoh: fmt(8000) → "Rp 8.000"
 function fmt(n) {
   return 'Rp ' + n.toLocaleString('id-ID');
 }
 
 // ===== AUTH GUARD =====
-// Panggil di awal setiap halaman: authGuard(['kasir','owner'])
-// atau authGuard(['owner']) kalau hanya owner yang boleh
+// Dipanggil di awal setiap halaman buat ngecek apakah user
+// sudah login dan punya akses ke halaman tersebut.
+// Kalau belum login → redirect ke login.html
+// Kalau role tidak punya akses → redirect ke halaman default role
 const PAGE_ACCESS = {
   'index.html':       ['kasir'],
   'produk.html':      ['owner'],
@@ -25,21 +29,21 @@ function authGuard() {
     window.location.href = getLoginPath();
     return;
   }
-  // Cek akses halaman ini
   const path = window.location.pathname;
   const file = path.split('/').pop() || 'index.html';
   const allowed = PAGE_ACCESS[file];
   if (allowed && !allowed.includes(role)) {
-    // Redirect ke halaman default role
-    const def = role === 'kasir' ? '../index.html' : 'pages/produk.html';
+    const def = role === 'kasir' ? '../index.html' : 'produk.html';
     window.location.href = def;
   }
 }
 
+// Menentukan path login.html berdasarkan posisi file saat ini
+// (apakah di dalam folder pages/ atau di root)
 function getLoginPath() {
   const path = window.location.pathname;
   const inPages = path.includes('/pages/');
-  return 'pages/login.html';
+  return inPages ? 'login.html' : 'pages/login.html';
 }
 
 function logout() {
@@ -53,11 +57,8 @@ function getRole() {
 }
 
 // ===== SYNC STOK KE SHEET =====
-// Mengirim data stok terkini dari localStorage ke Google Sheets.
-// Sheet Stok baris 2 akan terupdate otomatis.
-// Dipanggil setiap kali:
-// - Kasir klik Simpan transaksi (index.html)
-// - Pemilik tambah/edit/hapus/ubah stok produk (produk.html)
+// Mengirim data stok terkini ke Google Sheets.
+// Dipanggil setiap ada perubahan stok atau transaksi.
 function syncStokKeSheet() {
   const produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
   const url = SHEET_URL
@@ -66,4 +67,83 @@ function syncStokKeSheet() {
         produkList.map(p => ({ nama: p.nama, stok: p.stok }))
       ));
   fetch(url, { mode: 'no-cors' }).catch(() => {});
+}
+
+// ===== HITUNG PEMASUKAN HARI INI =====
+// Menghitung total pemasukan dari transaksi yang statusnya 'tersimpan'
+// (sudah dibayar). Disimpan di localStorage dengan key 'pemasukan_harian'.
+// Data pemasukan di-reset otomatis setiap hari baru.
+//
+// Struktur data pemasukan_harian di localStorage:
+// { tanggal: '10/06/2026', total: 150000 }
+//
+// Dipanggil di riwayat.html untuk nampilin total pemasukan hari ini.
+function hitungPemasukanHariIni() {
+  const today = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+
+  // Cek apakah data pemasukan masih untuk hari ini
+  // Kalau tanggalnya beda (hari baru), reset ke 0
+  const saved = JSON.parse(localStorage.getItem('pemasukan_harian') || '{}');
+  if (saved.tanggal !== today) {
+    // Hari baru → hitung ulang dari data riwayat yang ada
+    const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+    const total = riwayat
+      .filter(r => r.status === 'tersimpan' && r.tanggal.startsWith(today))
+      .reduce((s, r) => s + r.total, 0);
+
+    const baru = { tanggal: today, total };
+    localStorage.setItem('pemasukan_harian', JSON.stringify(baru));
+    return total;
+  }
+
+  return saved.total || 0;
+}
+
+// Menambah jumlah pemasukan harian ketika ada transaksi baru yang dibayar.
+// Dipanggil dari riwayat.html saat user klik tombol "Bayar".
+function tambahPemasukan(jumlah) {
+  const today = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+
+  const saved = JSON.parse(localStorage.getItem('pemasukan_harian') || '{}');
+
+  // Kalau tanggal sama, tambah ke total yang ada
+  // Kalau hari baru, mulai dari jumlah ini
+  const totalBaru = (saved.tanggal === today ? (saved.total || 0) : 0) + jumlah;
+  localStorage.setItem('pemasukan_harian', JSON.stringify({ tanggal: today, total: totalBaru }));
+}
+
+// ===== AUTO RESET RIWAYAT 2 HARI =====
+// Mengecek apakah riwayat perlu di-reset otomatis.
+// Riwayat akan dihapus otomatis setelah 2 hari sejak transaksi pertama.
+// Tanggal mulai disimpan di localStorage key 'riwayat_mulai'.
+//
+// Dipanggil saat halaman riwayat dibuka.
+function cekAutoResetRiwayat() {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  if (riwayat.length === 0) return; // tidak ada data, skip
+
+  const today = new Date();
+  const mulaiStr = localStorage.getItem('riwayat_mulai');
+
+  if (!mulaiStr) {
+    // Belum ada tanggal mulai → set sekarang
+    localStorage.setItem('riwayat_mulai', today.toISOString());
+    return;
+  }
+
+  const mulai = new Date(mulaiStr);
+  const selisihHari = Math.floor((today - mulai) / (1000 * 60 * 60 * 24));
+
+  // Kalau sudah 2 hari atau lebih → reset riwayat
+  if (selisihHari >= 2) {
+    localStorage.removeItem('riwayat');
+    localStorage.removeItem('riwayat_mulai');
+    localStorage.removeItem('nomorTransaksi');
+    localStorage.removeItem('pemasukan_harian');
+    console.log('Riwayat auto-reset setelah 2 hari.');
+  }
 }

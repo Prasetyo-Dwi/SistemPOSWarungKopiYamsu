@@ -25,8 +25,11 @@
       <div class="header-date">
         <div class="header-date-label" id="tgl-el">—</div>
         <div class="header-date-val" id="total-transaksi">0 transaksi</div>
+         <!-- Total pemasukan dari transaksi yang sudah dibayar hari ini -->
+        <div style="font-size:13px; font-weight:600; color:#ff7a00; margin-top:2px;" id="pemasukan-hari-ini">Rp 0</div>
       </div>
     </div>
+
 
     <!-- ACTIONS -->
     <div class="header-actions">
@@ -41,8 +44,8 @@
     <div class="kosong-state">Belum ada transaksi hari ini</div>
   </div>
 
-   <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank"> //bisadigantilinknya
+   <!-- TOMBOL SHEET bisadigantilinknya -->
+  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
     Buka Spreadsheet
   </a>
 
@@ -95,10 +98,16 @@ function hitungStorage() {
 
 // ===== LOAD RIWAYAT =====
 function loadRiwayat() {
+  // Cek auto reset dulu sebelum load (reset otomatis setelah 2 hari)
+  cekAutoResetRiwayat();
+
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
+
+  // Update tampilan pemasukan hari ini
+  document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
     list.innerHTML = '<div class="kosong-state">Belum ada transaksi</div>';
@@ -196,6 +205,8 @@ function simpanKeSheet(index) {
   .then(() => {
     riwayat[index].status = 'tersimpan';
     localStorage.setItem('riwayat', JSON.stringify(riwayat));
+    // Tambah pemasukan harian setelah transaksi dibayar
+    tambahPemasukan(r.total);
     loadRiwayat();
   })
   .catch(() => {
@@ -210,12 +221,15 @@ function resetRiwayat() {
   if (!confirm('Yakin mau hapus semua riwayat?')) return;
   localStorage.removeItem('riwayat');
   localStorage.removeItem('nomorTransaksi');
+  localStorage.removeItem('riwayat_mulai');
+  // Reset pemasukan harian juga saat riwayat dihapus
+  localStorage.removeItem('pemasukan_harian');
   loadRiwayat();
 }
 
 loadRiwayat();
 </script>
 
-<script src="../function/Navigation.js"></script>
+<script src="../function/navigation.js"></script>
 </body>
 </html>
