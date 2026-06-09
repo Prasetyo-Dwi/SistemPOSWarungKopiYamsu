@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riwayat — Warkop Yamsu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="riwayat.css">
+</head>
+<body>
+
+<div class="phone">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="header-title">
+          Riwayat
+        </div>
+        <div class="header-sub">Transaksi hari ini</div>
+      </div>
+      <div class="header-date">
+        <div class="header-date-label" id="tgl-el">—</div>
+        <div class="header-date-val" id="total-transaksi">0 transaksi</div>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="header-actions">
+      <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
+      <div class="storage-info" id="storage-info">Menghitung...</div>
+    </div>
+
+  </div>
+
+  <!-- LIST -->
+  <div class="riwayat-list" id="riwayat-list">
+    <div class="kosong-state">Belum ada transaksi hari ini</div>
+  </div>
+
+   <!-- TOMBOL SHEET -->
+  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank"> //bisadigantilinknya
+    Buka Spreadsheet
+  </a>
+
+  <!-- FOOTER NAV -->
+  <div class="footer-nav">
+    <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
+    <div class="nav-item" data-page="produk"><p>Produk</p></div>
+    <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
+  </div>
+
+</div>
+
+<script src="../function/utils.js"></script>
+<script>authGuard();</script>
+
+<script>
+
+// ===== CLOCK =====
+function tick() {
+  const now = new Date();
+  document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
+    weekday:'short', day:'numeric', month:'long', year:'numeric'
+  });
+}
+tick();
+
+// ===== HITUNG STORAGE =====
+function hitungStorage() {
+  let total = 0;
+  for (let key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      total += (localStorage[key].length + key.length) * 2;
+    }
+  }
+  const usedKB = total / 1024;
+  const max = 5120;
+  const persen = ((usedKB / max) * 100).toFixed(1);
+  const usedText = usedKB < 1024
+    ? usedKB.toFixed(1) + ' KB'
+    : (usedKB / 1024).toFixed(2) + ' MB';
+
+  const el = document.getElementById('storage-info');
+  el.textContent = usedText + ' / 5 MB (' + persen + '%)';
+
+  el.classList.remove('safe', 'warn', 'danger');
+  if (persen >= 80) el.classList.add('danger');
+  else if (persen >= 60) el.classList.add('warn');
+  else el.classList.add('safe');
+}
+
+// ===== LOAD RIWAYAT =====
+function loadRiwayat() {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const list = document.getElementById('riwayat-list');
+  document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
+  hitungStorage();
+
+  if (riwayat.length === 0) {
+    list.innerHTML = '<div class="kosong-state">Belum ada transaksi</div>';
+    return;
+  }
+
+  list.innerHTML = riwayat.map((r, i) => `
+    <div class="riwayat-card" id="card-${i}">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div class="card-header-left">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
+          </div>
+          <div class="card-info">
+            <div class="card-title">Transaksi #${String(riwayat.length - i).padStart(3,'0')}</div>
+            <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
+          </div>
+        </div>
+        <div class="card-header-right">
+          <span class="badge-status ${r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
+            ${r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
+          </span>
+          <div class="toggle-btn">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="max-height:0; overflow:hidden; transition: max-height 0.4s ease;">
+        <div class="card-body-inner">
+          <div class="item-list">
+            ${r.items.map(item => `
+              <div class="item-row">
+                <span>- ${item.produk}</span>
+                <span>${item.jumlah}x ${fmt(item.harga)}</span>
+              </div>
+            `).join('')}
+          </div>
+          <hr class="divider">
+          <div class="card-footer">
+            <div>
+              <div class="total-label">TOTAL</div>
+              <div class="total-val">${fmt(r.total)}</div>
+            </div>
+            ${r.status === 'tersimpan'
+              ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
+              : `<button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ===== TOGGLE CARD =====
+function toggleCard(header) {
+  const card = header.closest('.riwayat-card');
+  const body = card.querySelector('.card-body');
+
+  if (card.classList.contains('open')) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        body.style.maxHeight = '0';
+      });
+    });
+    card.classList.remove('open');
+  } else {
+    card.classList.add('open');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.addEventListener('transitionend', () => {
+      body.style.maxHeight = 'none';
+    }, { once: true });
+  }
+}
+
+// ===== SIMPAN KE SPREADSHEET =====
+function simpanKeSheet(index) {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const r = riwayat[index];
+  if (!r) return;
+
+  const btn = document.querySelector(`#card-${index} .btn-bayar`);
+  btn.textContent = 'Memproses...';
+  btn.disabled = true;
+
+  const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
+
+  const url = SHEET_URL
+    + '?tanggal=' + encodeURIComponent(r.tanggal)
+    + '&nomor=' + encodeURIComponent(nomorTransaksi)
+    + '&items=' + encodeURIComponent(JSON.stringify(r.items));
+
+  fetch(url, { mode: 'no-cors' })
+  .then(() => {
+    riwayat[index].status = 'tersimpan';
+    localStorage.setItem('riwayat', JSON.stringify(riwayat));
+    loadRiwayat();
+  })
+  .catch(() => {
+    btn.textContent = 'Bayar';
+    btn.disabled = false;
+    alert('Gagal konek ke server!');
+  });
+}
+
+// ===== RESET RIWAYAT =====
+function resetRiwayat() {
+  if (!confirm('Yakin mau hapus semua riwayat?')) return;
+  localStorage.removeItem('riwayat');
+  localStorage.removeItem('nomorTransaksi');
+  loadRiwayat();
+}
+
+loadRiwayat();
+</script>
+
+<script src="../function/Navigation.js"></script>
+</body>
+</html>

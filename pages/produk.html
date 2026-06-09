@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produk</title>
+  <link rel="stylesheet" href="produk.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-top">
+        <div class="title">
+          <h1>Produk</h1>
+          <p>Kelola menu & stok</p>
+        </div>
+        <div class="clock">
+          <span>Total produk</span>
+          <h2 id="total-produk">0</h2>
+        </div>
+      </div>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Cari produk..." oninput="renderProduk()">
+        <button class="filter-btn">Filter</button>
+      </div>
+    </div>
+
+    <!-- CATEGORY -->
+    <div class="category">
+      <button class="active" data-cat="semua">Semua</button>
+      <button data-cat="minuman">Minuman</button>
+      <button data-cat="makanan">Makanan</button>
+      <button data-cat="lainnya">Lainnya</button>
+    </div>
+
+    <!-- INFO -->
+    <div class="top-product">
+      <span id="info-jumlah">0 produk ditemukan</span>
+      <button class="add-btn" onclick="openModal()">+ Tambah produk</button>
+    </div>
+
+    <!-- PRODUCT GRID -->
+    <div class="product-grid" id="product-grid"></div>
+
+  </div>
+
+  <!-- FLOAT BUTTON -->
+  <button class="floating-btn" onclick="openModal()">+</button>
+
+  <!-- FOOTER NAV -->
+  <div class="footer-nav">
+    <div class="nav-item"><p>Transaksi</p></div>
+    <div class="nav-item active"><p>Produk</p></div>
+    <div class="nav-item"><p>Riwayat</p></div>
+  </div>
+
+  <!-- MODAL TAMBAH PRODUK -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModalBg(event)">
+    <div class="modal-box">
+      <h3 id="modal-title">Tambah Produk</h3>
+
+      <label>Emoji</label>
+      <div class="emoji-picker" id="emoji-picker">
+        🍌🍝🍳🧋☕💧🥨🍞🍗🍜🥘🍊🍕🍔🧃🍵🥤🫙🥗🍱
+      </div>
+      <div class="emoji-selected" id="emoji-selected">🍽️</div>
+
+      <label>Nama Produk</label>
+      <input type="text" id="input-nama" placeholder="Contoh: Nasi Goreng">
+
+      <label>Harga (Rp)</label>
+      <input type="number" id="input-harga" placeholder="Contoh: 15000">
+
+      <label>Stok</label>
+      <input type="number" id="input-stok" placeholder="Contoh: 50">
+
+      <label>Kategori</label>
+      <select id="input-kategori">
+        <option value="makanan">Makanan</option>
+        <option value="minuman">Minuman</option>
+        <option value="lainnya">Lainnya</option>
+      </select>
+
+      <div class="modal-btns">
+        <button class="btn-batal" onclick="closeModal()">Batal</button>
+        <button class="btn-simpan" onclick="simpanProduk()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+<script src="../function/utils.js"></script>
+<script>authGuard();</script>
+
+  <script>
+    const STORAGE_KEY = 'produk_list';
+    let produkList = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let curCat = 'semua';
+    let editId = null;
+    let selectedEmoji = '🍽️';
+
+    if (produkList.length === 0) {
+      produkList = [
+        { id:1, nama:'Es Teh Manis', harga:5000,  stok:20, emoji:'🧋', cat:'minuman' },
+        { id:2, nama:'Kopi Susu',    harga:8000,  stok:5,  emoji:'☕', cat:'minuman' },
+        { id:3, nama:'Kopi ABC',     harga:6000,  stok:10, emoji:'☕', cat:'minuman' },
+        { id:4, nama:'Mie Goreng',   harga:10000, stok:15, emoji:'🍝', cat:'makanan' },
+        { id:5, nama:'Roti Bakar',   harga:7000,  stok:25, emoji:'🍞', cat:'makanan' },
+      ];
+      simpanKeStorage();
+    }
+
+    function simpanKeStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(produkList));
+    }
+
+
+    function renderProduk() {
+      const keyword = document.getElementById('search-input').value.toLowerCase();
+      let list = curCat === 'semua' ? produkList : produkList.filter(p => p.cat === curCat);
+      if (keyword) list = list.filter(p => p.nama.toLowerCase().includes(keyword));
+
+      document.getElementById('total-produk').textContent = produkList.length;
+      document.getElementById('info-jumlah').textContent = list.length + ' produk ditemukan';
+
+      document.getElementById('product-grid').innerHTML = list.map(p => {
+        const statusClass = p.stok <= 5 ? 'low' : 'available';
+        const statusText  = p.stok <= 5 ? 'Stok tipis' : 'Tersedia';
+        return `
+        <div class="card">
+          <div class="badge ${statusClass}">${statusText}</div>
+          <div class="product-image">
+            <span style="font-size:48px">${p.emoji}</span>
+          </div>
+          <div class="product-info">
+            <div class="product-name">${p.nama}</div>
+            <div class="product-price">${fmt(p.harga)}</div>
+            <div class="stok-control">
+              <button onclick="ubahStok(${p.id}, -1)">−</button>
+              <span>Stok: ${p.stok}</span>
+              <button onclick="ubahStok(${p.id}, 1)">+</button>
+            </div>
+            <div class="card-actions">
+              <button class="btn-edit" onclick="editProduk(${p.id})">✏️ Edit</button>
+              <button class="btn-hapus" onclick="hapusProduk(${p.id})">🗑️ Hapus</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function ubahStok(id, delta) {
+      const p = produkList.find(x => x.id === id);
+      if (!p) return;
+      p.stok = Math.max(0, p.stok + delta);
+      simpanKeStorage();
+      renderProduk();
+      syncStokKeSheet(); // ← sync ke Sheets
+    }
+
+    function hapusProduk(id) {
+      if (!confirm('Hapus produk ini?')) return;
+      produkList = produkList.filter(p => p.id !== id);
+      simpanKeStorage();
+      renderProduk();
+      syncStokKeSheet(); // ← sync ke Sheets
+    }
+
+    function editProduk(id) {
+      const p = produkList.find(x => x.id === id);
+      if (!p) return;
+      editId = id;
+      selectedEmoji = p.emoji;
+      document.getElementById('modal-title').textContent = 'Edit Produk';
+      document.getElementById('input-nama').value = p.nama;
+      document.getElementById('input-harga').value = p.harga;
+      document.getElementById('input-stok').value = p.stok;
+      document.getElementById('input-kategori').value = p.cat;
+      document.getElementById('emoji-selected').textContent = p.emoji;
+      openModal();
+    }
+
+    function simpanProduk() {
+      const nama  = document.getElementById('input-nama').value.trim();
+      const harga = parseInt(document.getElementById('input-harga').value);
+      const stok  = parseInt(document.getElementById('input-stok').value);
+      const cat   = document.getElementById('input-kategori').value;
+
+      if (!nama || !harga || isNaN(stok)) {
+        alert('Lengkapi semua data!');
+        return;
+      }
+
+      if (editId) {
+        const p = produkList.find(x => x.id === editId);
+        p.nama = nama; p.harga = harga; p.stok = stok;
+        p.cat = cat; p.emoji = selectedEmoji;
+      } else {
+        const newId = Date.now();
+        produkList.push({ id: newId, nama, harga, stok, emoji: selectedEmoji, cat });
+      }
+
+      simpanKeStorage();
+      closeModal();
+      renderProduk();
+      syncStokKeSheet(); // ← sync ke Sheets
+    }
+
+    // ===== EMOJI PICKER =====
+    document.addEventListener('DOMContentLoaded', () => {
+      const picker = document.getElementById('emoji-picker');
+      picker.innerHTML = [...picker.textContent.trim()].map(e =>
+        `<span class="emoji-opt" onclick="pilihEmoji('${e}')">${e}</span>`
+      ).join('');
+    });
+
+    function pilihEmoji(e) {
+      selectedEmoji = e;
+      document.getElementById('emoji-selected').textContent = e;
+      document.querySelectorAll('.emoji-opt').forEach(el => el.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    // ===== MODAL =====
+    function openModal() {
+      document.getElementById('modal-overlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.remove('open');
+      document.getElementById('input-nama').value = '';
+      document.getElementById('input-harga').value = '';
+      document.getElementById('input-stok').value = '';
+      document.getElementById('emoji-selected').textContent = '🍽️';
+      document.getElementById('modal-title').textContent = 'Tambah Produk';
+      selectedEmoji = '🍽️';
+      editId = null;
+    }
+
+    function closeModalBg(e) {
+      if (e.target.id === 'modal-overlay') closeModal();
+    }
+
+    // ===== KATEGORI =====
+    document.querySelector('.category').addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      document.querySelectorAll('.category button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      curCat = btn.dataset.cat;
+      renderProduk();
+    });
+
+    renderProduk();
+  </script>
+
+  <script src="../function/Navigation.js"></script>
+</body>
+</html>

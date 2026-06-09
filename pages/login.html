@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Warkop Yamsu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+    html, body { height: 100%; background: #f4f4f7; }
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .login-wrap { width: 100%; max-width: 400px; animation: fadeUp 0.4s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .logo { text-align: center; margin-bottom: 32px; }
+    .logo-icon { width: 64px; height: 64px; background: #1e214f; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 14px; }
+    .logo h1 { font-size: 22px; font-weight: 700; color: #1e214f; }
+    .logo p { font-size: 13px; color: #888; margin-top: 4px; }
+    .card { background: white; border-radius: 24px; padding: 28px 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+    .role-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .role-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .role-btn { border: 2px solid #ececf3; background: #f9f9fb; border-radius: 16px; padding: 14px 10px; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .role-btn .role-emoji { font-size: 28px; display: block; margin-bottom: 6px; }
+    .role-btn .role-name { font-size: 14px; font-weight: 600; color: #444; }
+    .role-btn .role-desc { font-size: 11px; color: #aaa; margin-top: 2px; }
+    .role-btn.active { border-color: #1e214f; background: #f0f1f9; }
+    .role-btn.active .role-name { color: #1e214f; }
+    .divider { height: 1px; background: #ececf3; margin: 20px 0; }
+    .owner-form { display: none; }
+    .owner-form.show { display: block; }
+    .form-label { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; display: block; }
+    .form-input { width: 100%; padding: 13px 16px; border: 1.5px solid #ececf3; border-radius: 14px; font-size: 14px; font-family: 'Poppins', sans-serif; outline: none; transition: border-color 0.2s; margin-bottom: 14px; }
+    .form-input:focus { border-color: #1e214f; }
+    .error-msg { background: #fff0f0; color: #e53e3e; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; display: none; }
+    .error-msg.show { display: block; }
+    .btn-masuk { width: 100%; padding: 15px; background: #1e214f; color: white; border: none; border-radius: 16px; font-size: 15px; font-weight: 700; font-family: 'Poppins', sans-serif; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    .btn-masuk:hover { background: #2a2e68; }
+    .btn-masuk:active { transform: scale(0.98); }
+    .btn-masuk.orange { background: #ff7a00; }
+    .btn-masuk.orange:hover { background: #e06e00; }
+    .kasir-info { background: #f0f1f9; border-radius: 14px; padding: 14px; margin-bottom: 16px; text-align: center; display: none; }
+    .kasir-info.show { display: block; }
+    .kasir-info p { font-size: 13px; color: #666; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="logo">
+    <div class="logo-icon">☕</div>
+    <h1>Warkop Yamsu</h1>
+    <p>Point of Sale System</p>
+  </div>
+  <div class="card">
+    <div class="role-title">Masuk sebagai</div>
+    <div class="role-btns">
+      <div class="role-btn active" id="btn-kasir" onclick="pilihRole('kasir')">
+        <span class="role-emoji">🧑‍💼</span>
+        <div class="role-name">Kasir</div>
+        <div class="role-desc">Langsung masuk</div>
+      </div>
+      <div class="role-btn" id="btn-owner" onclick="pilihRole('owner')">
+        <span class="role-emoji">👑</span>
+        <div class="role-name">Owner</div>
+        <div class="role-desc">Perlu password</div>
+      </div>
+    </div>
+    <div class="kasir-info show" id="kasir-info">
+      <p>Halo Kasir! Kamu bisa langsung masuk<br>tanpa password ☕</p>
+    </div>
+    <div class="owner-form" id="owner-form">
+      <div class="divider"></div>
+      <label class="form-label">Username</label>
+      <input type="text" class="form-input" id="input-username" placeholder="Masukkan username" autocomplete="username">
+      <label class="form-label">Password</label>
+      <input type="password" class="form-input" id="input-password" placeholder="Masukkan password" autocomplete="current-password">
+    </div>
+    <div class="error-msg" id="error-msg">Username atau password salah!</div>
+    <button class="btn-masuk orange" id="btn-masuk" onclick="doLogin()">Masuk sebagai Kasir →</button>
+  </div>
+</div>
+<script>
+  let selectedRole = 'kasir';
+  if (!localStorage.getItem('owner_credentials')) {
+    localStorage.setItem('owner_credentials', JSON.stringify({ username: 'owner', password: 'owner123' }));
+  }
+  function pilihRole(role) {
+    selectedRole = role;
+    document.getElementById('btn-kasir').classList.toggle('active', role === 'kasir');
+    document.getElementById('btn-owner').classList.toggle('active', role === 'owner');
+    document.getElementById('kasir-info').classList.toggle('show', role === 'kasir');
+    document.getElementById('owner-form').classList.toggle('show', role === 'owner');
+    document.getElementById('error-msg').classList.remove('show');
+    const btn = document.getElementById('btn-masuk');
+    if (role === 'kasir') { btn.textContent = 'Masuk sebagai Kasir →'; btn.className = 'btn-masuk orange'; }
+    else { btn.textContent = 'Masuk sebagai Owner →'; btn.className = 'btn-masuk'; }
+  }
+  function doLogin() {
+    if (selectedRole === 'kasir') {
+      sessionStorage.setItem('pos_role', 'kasir');
+      sessionStorage.setItem('pos_user', 'Kasir');
+      window.location.href = '../index.html';
+      return;
+    }
+    const username = document.getElementById('input-username').value.trim();
+    const password = document.getElementById('input-password').value;
+    const creds = JSON.parse(localStorage.getItem('owner_credentials'));
+    if (username === creds.username && password === creds.password) {
+      sessionStorage.setItem('pos_role', 'owner');
+      sessionStorage.setItem('pos_user', 'Owner');
+      window.location.href = 'produk.html';
+    } else {
+      document.getElementById('error-msg').classList.add('show');
+      document.getElementById('input-password').value = '';
+      document.getElementById('input-password').focus();
+    }
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && selectedRole === 'owner') doLogin(); });
+  const role = sessionStorage.getItem('pos_role');
+  if (role === 'kasir') window.location.href = '../index.html';;
+  if (role === 'owner') window.location.href = 'produk.html';
+</script>
+</body>
+</html>

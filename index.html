@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS System</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div>
+      <h1>Warkop Yamsu</h1>
+      <p>Point of Sale System &nbsp;<span id="role-badge" style="background:rgba(255,122,0,0.25);color:#ff7a00;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;"></span>&nbsp;<button onclick="logout()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:2px 10px;font-size:11px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;">Keluar</button></p>
+    </div>
+    <div class="jam">
+      <span id="tgl-el">—</span>
+      <h2 id="jam-el">00:00</h2>
+    </div>
+  </header>
+
+  <!-- KATEGORI -->
+  <div class="kategori">
+    <button class="active" data-cat="semua">Semua</button>
+    <button data-cat="makanan">Makanan</button>
+    <button data-cat="minuman">Minuman</button>
+    <button data-cat="lainnya">Lainnya</button>
+  </div>
+
+  <!-- PRODUK -->
+  <div class="produk-container" id="produk-container"></div>
+  </div>
+
+  <!-- RINCIAN -->
+  <div class="rincian">
+    <div class="rincian-header">
+      <h3>Rincian Struk / Item</h3>
+      <span onclick="clearCart()">Hapus Semua</span>
+    </div>
+    <div id="rincian-body">
+      <div class="kosong">Belum ada item dipilih</div>
+    </div>
+    <div class="total-box">
+      <div>
+        <p>Total Item</p>
+        <h3 id="total-item">0 item</h3>
+      </div>
+      <div>
+        <p>Total Harga</p>
+        <h2 id="total-harga">Rp 0</h2>
+      </div>
+      <button onclick="bayar()">Simpan →</button>
+    </div>
+  </div>
+
+<!-- FOOTER NAVIGATION -->
+<div class="footer-nav">
+  <div class="nav-item active"><p>Transaksi</p></div>
+  <div class="nav-item"><p>Produk</p></div>
+  <div class="nav-item"><p>Riwayat</p></div>
+</div>
+
+<script>
+if (!sessionStorage.getItem('pos_role')) {
+  window.location.href = 'pages/login.html';
+}
+</script>
+
+<!---note dwi: atas buat langsung otomatis ke login
+
+<!-- utils.js duluan sebelum script utama -->
+<script src="function/utils.js"></script>
+<script>authGuard();</script>
+
+<script>
+let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+
+if (produkList.length === 0) {
+  alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
+}
+
+let cart = {};
+let curCat = 'semua';
+
+// ===== CLOCK =====
+function tick() {
+  const now = new Date();
+  document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
+  document.getElementById('jam-el').textContent = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }).replace(':', '.');
+}
+tick();
+setInterval(tick, 1000);
+document.getElementById('role-badge').textContent = (getRole() === 'kasir' ? '🧑‍💼 Kasir' : '👑 Owner');
+
+// ===== RENDER PRODUK =====
+function renderProduk() {
+  const list = curCat === 'semua' ? produkList : produkList.filter(p => p.cat === curCat);
+  document.getElementById('produk-container').innerHTML = list.map(p => {
+    const qty = cart[p.id] || 0;
+    return `
+    <div class="card ${qty > 0 ? 'card-selected' : ''}" onclick="addToCart(${p.id})">
+      <div class="card-emoji">${p.emoji}</div>
+      <div class="card-body">
+        <h3>${p.nama}</h3>
+        <h4>${fmt(p.harga)}</h4>
+        ${qty > 0 ? `<div class="card-qty-badge">${qty}x</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== CART =====
+function addToCart(id) {
+  const p = produkList.find(x => x.id == id);
+  if (!p) return;
+
+  const qtyDiCart = cart[id] || 0;
+  if (qtyDiCart >= p.stok) {
+    alert(`Stok ${p.nama} tidak cukup! Sisa stok: ${p.stok}`);
+    return;
+  }
+
+  cart[id] = qtyDiCart + 1;
+  renderProduk();
+  renderRincian();
+}
+
+function removeItem(id) {
+  delete cart[id];
+  renderProduk();
+  renderRincian();
+}
+
+function clearCart() {
+  cart = {};
+  renderProduk();
+  renderRincian();
+}
+
+// ===== RENDER RINCIAN =====
+function renderRincian() {
+  const ids = Object.keys(cart).filter(k => cart[k] > 0);
+  let totalItem = 0, total = 0;
+
+  ids.forEach(k => {
+    const p = produkList.find(x => x.id == k);
+    if (p) { totalItem += cart[k]; total += p.harga * cart[k]; }
+  });
+
+  document.getElementById('total-item').textContent = totalItem + ' item';
+  document.getElementById('total-harga').textContent = fmt(total);
+
+  const body = document.getElementById('rincian-body');
+  if (ids.length === 0) {
+    body.innerHTML = '<div class="kosong">Belum ada item dipilih</div>';
+    return;
+  }
+
+  body.innerHTML = ids.map(k => {
+    const p = produkList.find(x => x.id == k);
+    return `<div class="rincian-item">
+      <span>${p.emoji} ${p.nama}</span>
+      <span>${cart[k]}x</span>
+      <span>${fmt(p.harga * cart[k])}</span>
+      <button onclick="removeItem(${p.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ===== SIMPAN =====
+function bayar() {
+  const ids = Object.keys(cart).filter(k => cart[k] > 0);
+  if (!ids.length) { alert('Keranjang masih kosong!'); return; }
+
+  ids.forEach(k => {
+    const p = produkList.find(x => x.id == k);
+    if (p) p.stok = Math.max(0, p.stok - cart[k]);
+  });
+  localStorage.setItem('produk_list', JSON.stringify(produkList));
+
+  const now = new Date();
+  const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' })
+    + ' ' + now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+
+  const items = ids.map(k => {
+    const p = produkList.find(x => x.id == k);
+    return { produk: p.nama, jumlah: cart[k], harga: p.harga * cart[k] };
+  });
+
+  const total = items.reduce((s, i) => s + i.harga, 0);
+
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  riwayat.unshift({ tanggal, items, total, status: 'belum' });
+  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+  syncStokKeSheet(); // dari utils.js
+
+  clearCart();
+  alert('Transaksi berhasil disimpan!');
+}
+
+// ===== KATEGORI =====
+document.querySelector('.kategori').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('.kategori button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  curCat = btn.dataset.cat;
+  renderProduk();
+});
+
+renderProduk();
+renderRincian();
+</script>
+
+<script src="function/Navigation.js"></script>
+</body>
+</html>
