@@ -101,7 +101,25 @@ body {
   font-weight: 700;
   color: var(--orange);
   margin-top: 4px;
-  line-height: 1;
+}
+
+/* ── PEMASUKAN HARI INI ── */
+.header-pemasukan {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.header-pemasukan span:last-child {
+  color: var(--orange);
 }
 
 /* ── HEADER ACTIONS ── */

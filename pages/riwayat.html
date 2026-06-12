@@ -17,19 +17,20 @@
   <div class="header">
     <div class="header-top">
       <div>
-        <div class="header-title">
-          Riwayat
-        </div>
+        <div class="header-title">Riwayat</div>
         <div class="header-sub">Transaksi hari ini</div>
       </div>
       <div class="header-date">
         <div class="header-date-label" id="tgl-el">—</div>
         <div class="header-date-val" id="total-transaksi">0 transaksi</div>
-         <!-- Total pemasukan dari transaksi yang sudah dibayar hari ini -->
-        <div style="font-size:13px; font-weight:600; color:#ff7a00; margin-top:2px;" id="pemasukan-hari-ini">Rp 0</div>
       </div>
     </div>
 
+    <!-- Baris pemasukan -->
+    <div class="header-pemasukan">
+      <span>Pemasukan hari ini</span>
+      <span id="pemasukan-hari-ini">Rp 0</span>
+    </div>
 
     <!-- ACTIONS -->
     <div class="header-actions">
@@ -44,7 +45,7 @@
     <div class="kosong-state">Belum ada transaksi hari ini</div>
   </div>
 
-   <!-- TOMBOL SHEET bisadigantilinknya -->
+  <!-- TOMBOL SHEET -->
   <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
     Buka Spreadsheet
   </a>
@@ -98,7 +99,6 @@ function hitungStorage() {
 
 // ===== LOAD RIWAYAT =====
 function loadRiwayat() {
-  // Cek auto reset dulu sebelum load (reset otomatis setelah 2 hari)
   cekAutoResetRiwayat();
 
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
@@ -106,7 +106,6 @@ function loadRiwayat() {
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
 
-  // Update tampilan pemasukan hari ini
   document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
@@ -205,7 +204,6 @@ function simpanKeSheet(index) {
   .then(() => {
     riwayat[index].status = 'tersimpan';
     localStorage.setItem('riwayat', JSON.stringify(riwayat));
-    // Tambah pemasukan harian setelah transaksi dibayar
     tambahPemasukan(r.total);
     loadRiwayat();
   })
@@ -222,7 +220,6 @@ function resetRiwayat() {
   localStorage.removeItem('riwayat');
   localStorage.removeItem('nomorTransaksi');
   localStorage.removeItem('riwayat_mulai');
-  // Reset pemasukan harian juga saat riwayat dihapus
   localStorage.removeItem('pemasukan_harian');
   loadRiwayat();
 }
