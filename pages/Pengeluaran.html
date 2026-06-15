@@ -220,24 +220,39 @@ const KAT_EMOJI = { bahan: '🛒', operasional: '⚡', gaji: '💰', lainnya: '�
 const KAT_LABEL = { bahan: 'Bahan Baku', operasional: 'Operasional', gaji: 'Gaji', lainnya: 'Lainnya' };
 const KAT_CLASS = { bahan: 'kat-bahan', operasional: 'kat-operasional', gaji: 'kat-gaji', lainnya: 'kat-lainnya' };
 
-function tick() {
-  const now = new Date();
-  document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
-    weekday:'short', day:'numeric', month:'long', year:'numeric'
-  });
-}
-tick();
+// Tanggal di header
+const now = new Date();
+document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
+  weekday:'short', day:'numeric', month:'long', year:'numeric'
+});
 
+// localStorage helpers
 function getList() { return JSON.parse(localStorage.getItem('pengeluaran') || '[]'); }
 function saveList(list) { localStorage.setItem('pengeluaran', JSON.stringify(list)); }
 
+// Preview total sebelum simpan
 function updatePreview() {
   const harga  = parseInt(document.getElementById('inp-harga').value) || 0;
   const jumlah = parseInt(document.getElementById('inp-jumlah').value) || 0;
   document.getElementById('preview-total').textContent = fmt(harga * jumlah);
 }
 
-function tambahPengeluaran() {
+// Kirim ke Google Sheets lewat SHEET_URL dari utils.js
+function kirimKeSheet(data) {
+  const params = new URLSearchParams({
+    action:   'simpanPengeluaran',
+    tanggal:  data.tanggalSheet,
+    nama:     data.nama,
+    kategori: KAT_LABEL[data.kategori],
+    harga:    data.harga,
+    jumlah:   data.jumlah,
+    total:    data.total
+  });
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
+}
+
+// Tombol simpan
+async function tambahPengeluaran() {
   const nama     = document.getElementById('inp-nama').value.trim();
   const harga    = parseInt(document.getElementById('inp-harga').value);
   const jumlah   = parseInt(document.getElementById('inp-jumlah').value) || 1;
@@ -248,39 +263,45 @@ function tambahPengeluaran() {
   }
 
   const total = harga * jumlah;
-  const now = new Date();
-  const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' })
-    + ' ' + now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  const now   = new Date();
+  const tanggalSheet = now.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const tanggal      = tanggalSheet + ' ' + now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 
+  // 1. Simpan lokal dulu (langsung tampil, tidak nunggu internet)
   const list = getList();
   list.unshift({ id: Date.now(), nama, harga, jumlah, total, kategori, tanggal });
   saveList(list);
 
-  document.getElementById('inp-nama').value = '';
-  document.getElementById('inp-harga').value = '';
-  document.getElementById('inp-jumlah').value = '1';
+  // 2. Reset form
+  document.getElementById('inp-nama').value    = '';
+  document.getElementById('inp-harga').value   = '';
+  document.getElementById('inp-jumlah').value  = '1';
   document.getElementById('preview-total').textContent = 'Rp 0';
   renderList();
+
+  // 3. Kirim ke Google Sheets (background, tidak blok UI)
+  kirimKeSheet({ tanggalSheet, nama, kategori, harga, jumlah, total });
 }
 
+// Hapus satu item
 function hapusItem(id) {
-  const list = getList().filter(x => x.id !== id);
-  saveList(list);
+  saveList(getList().filter(x => x.id !== id));
   renderList();
 }
 
+// Hapus semua
 function resetSemua() {
   if (!confirm('Hapus semua data pengeluaran?')) return;
   localStorage.removeItem('pengeluaran');
   renderList();
 }
 
+// Render list
 function renderList() {
   const list = getList();
-  // support data lama yang masih pakai field 'jumlah' sebagai total
   const totalHariIni = list.reduce((s, x) => s + (x.total ?? x.jumlah), 0);
   document.getElementById('total-hari-ini').textContent = fmt(totalHariIni);
-  document.getElementById('info-jumlah').textContent = list.length + ' pengeluaran';
+  document.getElementById('info-jumlah').textContent    = list.length + ' pengeluaran';
 
   const el = document.getElementById('list-pengeluaran');
   if (list.length === 0) {

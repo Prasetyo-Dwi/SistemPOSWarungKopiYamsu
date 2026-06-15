@@ -152,7 +152,10 @@ function loadRiwayat() {
             </div>
             ${r.status === 'tersimpan'
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
-              : `<button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>`
+              : `<div style="display:flex;gap:8px;">
+                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
+                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>
+                </div>`
             }
           </div>
         </div>
@@ -224,8 +227,223 @@ function resetRiwayat() {
   loadRiwayat();
 }
 
+// ===== HELPER STOK =====
+function getProdukList() {
+  return JSON.parse(localStorage.getItem('produk_list') || '[]');
+}
+function saveProdukList(list) {
+  localStorage.setItem('produk_list', JSON.stringify(list));
+}
+function ubahStokProduk(namaProduk, delta) {
+  // delta positif = tambah stok, negatif = kurangi stok
+  const list = getProdukList();
+  const p = list.find(x => x.nama.toLowerCase() === namaProduk.toLowerCase());
+  if (p) {
+    p.stok = Math.max(0, p.stok + delta);
+    saveProdukList(list);
+    syncStokKeSheet();
+  }
+}
+
+// ===== EDIT TRANSAKSI =====
+let editIndex = -1;
+let itemsSebelumEdit = []; // snapshot qty sebelum edit untuk hitung selisih
+
+function bukaEdit(index) {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const r = riwayat[index];
+  if (!r) return;
+  editIndex = index;
+  // Simpan snapshot item sebelum edit
+  itemsSebelumEdit = r.items.map(x => ({ ...x }));
+
+  renderModalEdit(r.items);
+  document.getElementById('modal-edit-overlay').classList.add('active');
+}
+
+function renderModalEdit(items) {
+  document.getElementById('modal-edit-body').innerHTML = `
+    <div id="edit-items">
+      ${items.map((item, i) => `
+        <div class="edit-item-row" id="edit-row-${i}" data-nama="${item.produk}" data-harga="${item.harga}">
+          <div class="edit-item-info">
+            <span class="edit-item-nama">${item.produk}</span>
+            <span class="edit-item-harga">${fmt(item.harga)}</span>
+          </div>
+          <div class="edit-qty-control">
+            <button onclick="editQty(${i}, -1)">−</button>
+            <span id="edit-qty-${i}">${item.jumlah}</span>
+            <button onclick="editQty(${i}, 1)">+</button>
+            <button class="btn-hapus-row" onclick="hapusItemEdit(${i})">🗑️</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <button class="btn-tambah-item" onclick="bukaPilihProduk()">+ Tambah Produk</button>
+  `;
+}
+
+function editQty(i, delta) {
+  const span = document.getElementById(`edit-qty-${i}`);
+  const cur = parseInt(span.textContent) || 1;
+  const baru = Math.max(1, cur + delta);
+  span.textContent = baru;
+}
+
+function hapusItemEdit(i) {
+  const row = document.getElementById(`edit-row-${i}`);
+  if (row) row.remove();
+  // reindex
+  document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
+    el.id = `edit-row-${idx}`;
+    el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
+    el.querySelector('[id^="edit-qty-"]').id = `edit-qty-${idx}`;
+    const qtyBtns = el.querySelectorAll('.edit-qty-control button');
+    qtyBtns[0].setAttribute('onclick', `editQty(${idx}, -1)`);
+    qtyBtns[1].setAttribute('onclick', `editQty(${idx}, 1)`);
+  });
+}
+
+function simpanEdit() {
+  if (editIndex === -1) return;
+
+  const rows = document.querySelectorAll('#edit-items .edit-item-row');
+  const itemsBaru = [];
+  rows.forEach(row => {
+    const produk = row.dataset.nama;
+    const harga  = parseInt(row.dataset.harga) || 0;
+    const jumlah = parseInt(row.querySelector('[id^="edit-qty-"]').textContent) || 1;
+    if (produk) itemsBaru.push({ produk, jumlah, harga });
+  });
+
+  if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
+
+  // Hitung selisih stok per produk
+  // Buat map qty sebelum dan sesudah
+  const mapSebelum = {};
+  itemsSebelumEdit.forEach(x => {
+    mapSebelum[x.produk.toLowerCase()] = (mapSebelum[x.produk.toLowerCase()] || 0) + x.jumlah;
+  });
+  const mapBaru = {};
+  itemsBaru.forEach(x => {
+    mapBaru[x.produk.toLowerCase()] = { nama: x.produk, qty: (mapBaru[x.produk.toLowerCase()]?.qty || 0) + x.jumlah };
+  });
+
+  // Kembalikan stok untuk semua produk lama dulu
+  itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
+  // Kurangi stok dengan qty baru
+  itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
+
+  // Update riwayat
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
+  riwayat[editIndex].items = itemsBaru;
+  riwayat[editIndex].total = total;
+  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+  tutupModalEdit();
+  loadRiwayat();
+}
+
+function tutupModalEdit() {
+  document.getElementById('modal-edit-overlay').classList.remove('active');
+  editIndex = -1;
+  itemsSebelumEdit = [];
+}
+
+// ===== PILIH PRODUK (untuk tambah item di edit) =====
+function bukaPilihProduk() {
+  const produkList = getProdukList();
+  const grid = document.getElementById('produk-picker-grid');
+  grid.innerHTML = produkList.map((p, i) => `
+    <div class="picker-item ${p.stok <= 0 ? 'picker-habis' : ''}" onclick="${p.stok > 0 ? `pilihProduk(${i})` : ''}">
+      <div class="picker-emoji">${p.emoji}</div>
+      <div class="picker-nama">${p.nama}</div>
+      <div class="picker-harga">${fmt(p.harga)}</div>
+      <div class="picker-stok ${p.stok <= 5 ? 'stok-tipis' : ''}">Stok: ${p.stok}</div>
+    </div>
+  `).join('');
+  document.getElementById('modal-picker-overlay').classList.add('active');
+}
+
+function pilihProduk(idx) {
+  const produkList = getProdukList();
+  const p = produkList[idx];
+  if (!p) return;
+
+  // Cek apakah produk ini sudah ada di edit items
+  const rows = document.querySelectorAll('#edit-items .edit-item-row');
+  let found = false;
+  rows.forEach(row => {
+    if (row.dataset.nama.toLowerCase() === p.nama.toLowerCase()) {
+      // Tambah qty yang sudah ada
+      const qtyEl = row.querySelector('[id^="edit-qty-"]');
+      qtyEl.textContent = parseInt(qtyEl.textContent) + 1;
+      found = true;
+    }
+  });
+
+  if (!found) {
+    // Tambah baris baru
+    const container = document.getElementById('edit-items');
+    const idx2 = container.querySelectorAll('.edit-item-row').length;
+    const div = document.createElement('div');
+    div.className = 'edit-item-row';
+    div.id = `edit-row-${idx2}`;
+    div.dataset.nama = p.nama;
+    div.dataset.harga = p.harga;
+    div.innerHTML = `
+      <div class="edit-item-info">
+        <span class="edit-item-nama">${p.nama}</span>
+        <span class="edit-item-harga">${fmt(p.harga)}</span>
+      </div>
+      <div class="edit-qty-control">
+        <button onclick="editQty(${idx2}, -1)">−</button>
+        <span id="edit-qty-${idx2}">1</span>
+        <button onclick="editQty(${idx2}, 1)">+</button>
+        <button class="btn-hapus-row" onclick="hapusItemEdit(${idx2})">🗑️</button>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+
+  tutupPicker();
+}
+
+function tutupPicker() {
+  document.getElementById('modal-picker-overlay').classList.remove('active');
+}
+
 loadRiwayat();
 </script>
+
+<!-- MODAL EDIT TRANSAKSI -->
+<div class="modal-overlay" id="modal-edit-overlay" onclick="tutupModalEdit()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">Edit Transaksi</div>
+      <button class="modal-close" onclick="tutupModalEdit()">×</button>
+    </div>
+    <div class="modal-body" id="modal-edit-body"></div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="tutupModalEdit()">Batal</button>
+      <button class="btn-modal-save" onclick="simpanEdit()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PILIH PRODUK -->
+<div class="modal-overlay" id="modal-picker-overlay" onclick="tutupPicker()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">Pilih Produk</div>
+      <button class="modal-close" onclick="tutupPicker()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="produk-picker-grid" id="produk-picker-grid"></div>
+    </div>
+  </div>
+</div>
 
 <script src="../function/navigation.js"></script>
 </body>

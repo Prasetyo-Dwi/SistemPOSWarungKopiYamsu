@@ -68,7 +68,7 @@
       </div>
     </div>
     <div class="kasir-info show" id="kasir-info">
-      <p>Halo Kasir! Kamu bisa langsung masuk<br>tanpa password ☕</p>
+      <p>Halo Kasir! Kamu bisa langsung masuk<br>tanpa password</p>
     </div>
     <div class="owner-form" id="owner-form">
       <div class="divider"></div>
@@ -78,7 +78,7 @@
       <input type="password" class="form-input" id="input-password" placeholder="Masukkan password" autocomplete="current-password">
     </div>
     <div class="error-msg" id="error-msg">Username atau password salah!</div>
-    <button class="btn-masuk orange" id="btn-masuk" onclick="doLogin()">Masuk sebagai Kasir →</button>
+    <button class="btn-masuk orange" id="btn-masuk" onclick="doLogin()">Masuk sebagai Kasir</button>
   </div>
 </div>
 <script>
@@ -94,8 +94,8 @@
     document.getElementById('owner-form').classList.toggle('show', role === 'owner');
     document.getElementById('error-msg').classList.remove('show');
     const btn = document.getElementById('btn-masuk');
-    if (role === 'kasir') { btn.textContent = 'Masuk sebagai Kasir →'; btn.className = 'btn-masuk orange'; }
-    else { btn.textContent = 'Masuk sebagai Owner →'; btn.className = 'btn-masuk'; }
+    if (role === 'kasir') { btn.textContent = 'Masuk sebagai Kasir'; btn.className = 'btn-masuk orange'; }
+    else { btn.textContent = 'Masuk sebagai Owner'; btn.className = 'btn-masuk'; }
   }
 
   async function doLogin() {
@@ -144,7 +144,7 @@
       errMsg.classList.add('show');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = 'Masuk sebagai Owner →';
+      btn.innerHTML = 'Masuk sebagai Owner';
     }
   }
 
