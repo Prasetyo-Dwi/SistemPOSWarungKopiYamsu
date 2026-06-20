@@ -13,12 +13,12 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   max-width: 480px;
   margin: 0 auto;
   background: #f4f4f7;
   color: #1b1b1b;
-  overflow-x: hidden;
+  overflow: hidden;
   animation: fadeIn 0.3s ease;
 }
 
@@ -31,19 +31,14 @@ body {
 .container {
   flex: 1;
   overflow-y: auto;
-  padding-top: 180px;
   padding-bottom: 20px;
   background: #f4f4f7;
 }
 
 /* HEADER */
 .header {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  flex-shrink: 0;
   width: 100%;
-  max-width: 480px;
   background: #1e214f;
   padding: 20px;
   color: white;
