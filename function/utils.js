@@ -69,6 +69,45 @@ function syncStokKeSheet() {
   fetch(url, { mode: 'no-cors' }).catch(() => {});
 }
 
+// ===== SYNC DATA PRODUK LENGKAP KE SHEET =====
+// Mengirim seluruh data produk (nama, harga, emoji, kategori, stok) ke Sheets.
+// Dipanggil setiap kali ada tambah/edit/hapus produk di produk.html,
+// supaya Google Sheets jadi sumber data yang sama di semua perangkat.
+function syncProdukKeSheet() {
+  const produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+  const url = SHEET_URL
+    + '?action=simpanProduk'
+    + '&produk=' + encodeURIComponent(JSON.stringify(produkList));
+  fetch(url, { mode: 'no-cors' }).catch(() => {});
+}
+
+// ===== LOAD PRODUK DARI SHEET =====
+// Mengambil data produk dari Google Sheets saat halaman dibuka.
+// Kalau berhasil → simpan ke localStorage & jalankan callback(true).
+// Kalau gagal (offline/error) → pakai localStorage yang ada & callback(false).
+//
+// Cara pakai di produk.html / index.html:
+//   loadProdukDariSheet(() => {
+//     produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+//     renderProduk();
+//   });
+function loadProdukDariSheet(callback) {
+  const url = SHEET_URL + '?action=getProduk';
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok' && Array.isArray(data.produk) && data.produk.length > 0) {
+        localStorage.setItem('produk_list', JSON.stringify(data.produk));
+      }
+      callback(true);
+    })
+    .catch(() => {
+      // Gagal fetch (offline dll) → pakai data localStorage yang sudah ada
+      callback(false);
+    });
+}
+
 // ===== HITUNG PEMASUKAN HARI INI =====
 // Menghitung total pemasukan dari transaksi yang statusnya 'tersimpan'
 // (sudah dibayar). Disimpan di localStorage dengan key 'pemasukan_harian'.

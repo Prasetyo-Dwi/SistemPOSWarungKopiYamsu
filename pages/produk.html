@@ -26,8 +26,12 @@
       <div class="search-box">
         <input type="text" id="search-input" placeholder="Cari produk..." oninput="renderProduk()">
         <button class="filter-btn">Filter</button>
+        <button class="refresh-btn" id="btn-refresh" onclick="refreshProduk()" title="Sync dari Sheets">🔄</button>
       </div>
     </div>
+
+    <!-- TOAST NOTIF -->
+    <div class="toast" id="toast"></div>
 
     <!-- CATEGORY -->
     <div class="category">
@@ -102,19 +106,58 @@
     let editId = null;
     let selectedEmoji = '🍽️';
 
-    if (produkList.length === 0) {
-      produkList = [
-        { id:1, nama:'Es Teh Manis', harga:5000,  stok:20, emoji:'🧋', cat:'minuman' },
-        { id:2, nama:'Kopi Susu',    harga:8000,  stok:5,  emoji:'☕', cat:'minuman' },
-        { id:3, nama:'Kopi ABC',     harga:6000,  stok:10, emoji:'☕', cat:'minuman' },
-        { id:4, nama:'Mie Goreng',   harga:10000, stok:15, emoji:'🍝', cat:'makanan' },
-        { id:5, nama:'Roti Bakar',   harga:7000,  stok:25, emoji:'🍞', cat:'makanan' },
-      ];
-      simpanKeStorage();
-    }
-
     function simpanKeStorage() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(produkList));
+    }
+
+    // ===== TOAST NOTIF =====
+    function tampilToast(pesan, tipe) {
+      // tipe: 'success' atau 'error'
+      const toast = document.getElementById('toast');
+      toast.textContent = pesan;
+      toast.className = 'toast show ' + tipe;
+      setTimeout(() => {
+        toast.className = 'toast';
+      }, 3000);
+    }
+
+    // ===== LOAD AWAL — fetch dari Google Sheets dulu =====
+    // Supaya produk sama di semua perangkat. Kalau gagal/offline,
+    // tetap pakai data localStorage yang sudah ada + kasih notif.
+    function tampilLoading(show) {
+      const grid = document.getElementById('product-grid');
+      if (show) grid.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;">Memuat produk...</div>';
+    }
+
+    tampilLoading(true);
+    loadProdukDariSheet((berhasil) => {
+      produkList = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      renderProduk();
+      if (berhasil) {
+        tampilToast('✓ Produk berhasil disinkronkan', 'success');
+      } else {
+        tampilToast('⚠️ Gagal sync, menampilkan data tersimpan', 'error');
+      }
+    });
+
+    // ===== TOMBOL REFRESH MANUAL =====
+    function refreshProduk() {
+      const btn = document.getElementById('btn-refresh');
+      btn.classList.add('spinning');
+      btn.disabled = true;
+
+      loadProdukDariSheet((berhasil) => {
+        produkList = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        renderProduk();
+        btn.classList.remove('spinning');
+        btn.disabled = false;
+
+        if (berhasil) {
+          tampilToast('✓ Berhasil sync ulang dari Sheets', 'success');
+        } else {
+          tampilToast('⚠️ Gagal terhubung ke server', 'error');
+        }
+      });
     }
 
 
@@ -158,7 +201,8 @@
       p.stok = Math.max(0, p.stok + delta);
       simpanKeStorage();
       renderProduk();
-      syncStokKeSheet(); // ← sync ke Sheets
+      syncStokKeSheet();
+      syncProdukKeSheet(); // ← sync data produk lengkap ke Sheets
     }
 
     function hapusProduk(id) {
@@ -166,7 +210,8 @@
       produkList = produkList.filter(p => p.id !== id);
       simpanKeStorage();
       renderProduk();
-      syncStokKeSheet(); // ← sync ke Sheets
+      syncStokKeSheet();
+      syncProdukKeSheet(); // ← sync data produk lengkap ke Sheets
     }
 
     function editProduk(id) {
@@ -206,7 +251,8 @@
       simpanKeStorage();
       closeModal();
       renderProduk();
-      syncStokKeSheet(); // ← sync ke Sheets
+      syncStokKeSheet();
+      syncProdukKeSheet(); // ← sync data produk lengkap ke Sheets
     }
 
     // ===== EMOJI PICKER =====
