@@ -134,9 +134,9 @@
       produkList = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       renderProduk();
       if (berhasil) {
-        tampilToast('✓ Produk berhasil disinkronkan', 'success');
+        tampilToast('Produk berhasil disinkronkan!', 'success');
       } else {
-        tampilToast('⚠️ Gagal sync, menampilkan data tersimpan', 'error');
+        tampilToast('Gagal sync, menampilkan data tersimpan!', 'error');
       }
     });
 
@@ -153,9 +153,9 @@
         btn.disabled = false;
 
         if (berhasil) {
-          tampilToast('✓ Berhasil sync ulang dari Sheets', 'success');
+          tampilToast('Berhasil sync ulang dari Sheets!', 'success');
         } else {
-          tampilToast('⚠️ Gagal terhubung ke server', 'error');
+          tampilToast('Gagal terhubung ke server!', 'error');
         }
       });
     }
@@ -187,8 +187,8 @@
               <button onclick="ubahStok(${p.id}, 1)">+</button>
             </div>
             <div class="card-actions">
-              <button class="btn-edit" onclick="editProduk(${p.id})">✏️ Edit</button>
-              <button class="btn-hapus" onclick="hapusProduk(${p.id})">🗑️ Hapus</button>
+              <button class="btn-edit" onclick="editProduk(${p.id})">Edit</button>
+              <button class="btn-hapus" onclick="hapusProduk(${p.id})">Hapus</button>
             </div>
           </div>
         </div>`;
