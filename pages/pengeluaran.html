@@ -16,7 +16,7 @@
     }
     html, body { height: 100%; }
     body {
-      display: flex; flex-direction: column; height: 100vh;
+      display: flex; flex-direction: column; height: 100vh; height: 100dvh;
       max-width: 480px; margin: 0 auto; background: var(--bg);
       color: var(--text); animation: fadeIn 0.3s ease;
     }
@@ -212,7 +212,7 @@
     <div class="nav-item active" data-page="pengeluaran"><p>Pengeluaran</p></div>
   </div>
 
-<script src="../function/utils.js"></script>
+<script src="../function/utils.js?v=1"></script>
 <script>authGuard();</script>
 
 <script>
@@ -328,6 +328,6 @@ function renderList() {
 renderList();
 </script>
 
-<script src="../function/Navigation.js"></script>
+<script src="../function/Navigation.js?v=1"></script>
 </body>
 </html>
