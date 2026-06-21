@@ -8,17 +8,20 @@
 html, body {
   height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
   background: #f4f4f7;
   color: #1b1b1b;
   overflow: hidden;
+  touch-action: pan-y;
   animation: fadeIn 0.3s ease;
 }
 
