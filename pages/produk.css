@@ -32,6 +32,7 @@ body {
 /* CONTAINER */
 .container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 20px;
   background: #f4f4f7;
