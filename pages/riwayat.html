@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="riwayat.css?v=1">
+<link rel="stylesheet" href="riwayat.css">
 </head>
 <body>
 
@@ -40,15 +40,20 @@
 
   </div>
 
-  <!-- LIST -->
-  <div class="riwayat-list" id="riwayat-list">
-    <div class="kosong-state">Belum ada transaksi hari ini</div>
-  </div>
+  <!-- SCROLL AREA -->
+  <div class="scroll-area">
 
-  <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-    Buka Spreadsheet
-  </a>
+    <!-- LIST -->
+    <div class="riwayat-list" id="riwayat-list">
+      <div class="kosong-state">Belum ada transaksi hari ini</div>
+    </div>
+
+    <!-- TOMBOL SHEET -->
+    <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
+      Buka Spreadsheet
+    </a>
+
+  </div><!-- end scroll-area -->
 
   <!-- FOOTER NAV -->
   <div class="footer-nav">
@@ -59,7 +64,7 @@
 
 </div>
 
-<script src="../function/utils.js?v=1"></script>
+<script src="../function/utils.js"></script>
 <script>authGuard();</script>
 
 <script>
@@ -445,6 +450,6 @@ loadRiwayat();
   </div>
 </div>
 
-<script src="../function/Navigation.js?v=1"></script>
+<script src="../function/Navigation.js"></script>
 </body>
 </html>
