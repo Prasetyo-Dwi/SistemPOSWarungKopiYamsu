@@ -21,7 +21,6 @@ body {
   background: #f4f4f7;
   color: #1b1b1b;
   overflow: hidden;
-  touch-action: pan-y;
   animation: fadeIn 0.3s ease;
 }
 
