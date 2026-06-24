@@ -82,8 +82,6 @@ if (!sessionStorage.getItem('pos_role')) {
 loadProdukDariSheet(() => {
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
 
-let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
-
 if (produkList.length === 0) {
   alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
 }
