@@ -296,6 +296,30 @@ function resetSemua() {
   renderList();
 }
 
+ //refresh pengeluaran
+  function refreshPengeluaran() {
+  const btn = document.querySelector('.refresh-btn-pengeluaran'); // nanti ditambahin di HTML
+  if (btn) {
+    btn.classList.add('spinning');
+    btn.disabled = true;
+  }
+
+  loadPengeluaranDariSheet((berhasil) => {
+    renderList();
+    
+    if (btn) {
+      btn.classList.remove('spinning');
+      btn.disabled = false;
+    }
+
+    if (berhasil) {
+      console.log('✅ Pengeluaran berhasil di-refresh dari Sheets');
+    } else {
+      console.log('⚠️ Gagal refresh, menampilkan data tersimpan');
+    }
+  });
+}
+  
 // Render list
 function renderList() {
   const list = getList();
