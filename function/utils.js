@@ -108,6 +108,27 @@ function loadProdukDariSheet(callback) {
     });
 }
 
+// ===== LOAD PENGELUARAN DARI SHEET =====
+// Mengambil data pengeluaran dari Google Sheets saat halaman dibuka.
+// Kalau berhasil → simpan ke localStorage & jalankan callback(true).
+// Kalau gagal (offline/error) → pakai localStorage yang ada & callback(false).
+function loadPengeluaranDariSheet(callback) {
+  const url = SHEET_URL + '?action=getPengeluaran';
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok' && Array.isArray(data.pengeluaran) && data.pengeluaran.length > 0) {
+        localStorage.setItem('pengeluaran', JSON.stringify(data.pengeluaran));
+      }
+      callback(true);
+    })
+    .catch(() => {
+      // Gagal fetch (offline dll) → pakai data localStorage yang sudah ada
+      callback(false);
+    });
+}
+
 // ===== HITUNG PEMASUKAN HARI INI =====
 // Menghitung total pemasukan dari transaksi yang statusnya 'tersimpan'
 // (sudah dibayar). Disimpan di localStorage dengan key 'pemasukan_harian'.
