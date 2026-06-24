@@ -35,7 +35,6 @@
 
   <!-- PRODUK -->
   <div class="produk-container" id="produk-container"></div>
-  </div>
 
   <!-- RINCIAN -->
   <div class="rincian">
@@ -59,6 +58,8 @@
     </div>
   </div>
 
+</div>
+
 <!-- FOOTER NAVIGATION -->
 <div class="footer-nav">
   <div class="nav-item active"><p>Transaksi</p></div>
@@ -72,34 +73,35 @@ if (!sessionStorage.getItem('pos_role')) {
 }
 </script>
 
-<!---note dwi: atas buat langsung otomatis ke login-->
-
 <!-- utils.js duluan sebelum script utama -->
 <script src="function/utils.js?v=1"></script>
 <script>authGuard();</script>
+
 <script>
-// Load produk dari Sheets dulu, baru baca dari localStorage
-loadProdukDariSheet(() => {
+// ==========================================
+// 1. DEKLARASI VARIABEL GLOBAL
+// ==========================================
+// Ambil data dari localStorage langsung agar UI tidak menunggu internet
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
-
-if (produkList.length === 0) {
-  alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
-}
-
 let cart = {};
 let curCat = 'semua';
 
-// ===== CLOCK =====
+// ==========================================
+// 2. JAM & TANGGAL HEADER (Jalan Instan)
+// ==========================================
 function tick() {
   const now = new Date();
   document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
   document.getElementById('jam-el').textContent = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }).replace(':', '.');
 }
-tick();
-setInterval(tick, 1000);
+tick(); // Panggil sekali langsung jalan
+setInterval(tick, 1000); // Ulangi setiap detik
+
 document.getElementById('role-badge').textContent = (getRole() === 'kasir' ? '🧑‍💼 Kasir' : '👑 Owner');
 
-// ===== RENDER PRODUK =====
+// ==========================================
+// 3. FUNGSI LOGIKA POS
+// ==========================================
 function renderProduk() {
   const list = curCat === 'semua' ? produkList : produkList.filter(p => p.cat === curCat);
   document.getElementById('produk-container').innerHTML = list.map(p => {
@@ -116,7 +118,6 @@ function renderProduk() {
   }).join('');
 }
 
-// ===== CART =====
 function addToCart(id) {
   const p = produkList.find(x => x.id == id);
   if (!p) return;
@@ -144,7 +145,6 @@ function clearCart() {
   renderRincian();
 }
 
-// ===== RENDER RINCIAN =====
 function renderRincian() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   let totalItem = 0, total = 0;
@@ -174,7 +174,6 @@ function renderRincian() {
   }).join('');
 }
 
-// ===== SIMPAN =====
 function bayar() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   if (!ids.length) { alert('Keranjang masih kosong!'); return; }
@@ -206,7 +205,7 @@ function bayar() {
   alert('Transaksi berhasil disimpan!');
 }
 
-// ===== KATEGORI =====
+// EVENT LISTENER KATEGORI
 document.querySelector('.kategori').addEventListener('click', e => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -216,9 +215,26 @@ document.querySelector('.kategori').addEventListener('click', e => {
   renderProduk();
 });
 
-renderProduk();
-renderRincian();
+// ==========================================
+// 4. INIT: RENDER DULUAN LALU UPDATE BACKGROUND
+// ==========================================
+if (produkList.length > 0) {
+  renderProduk();
+  renderRincian();
+}
+
+// Ambil data terbaru dari Spreadsheet
+loadProdukDariSheet((success) => {
+  if (success) {
+    // Kalau berhasil, perbarui variabel produkList dan render ulang layarnya
+    produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+    renderProduk();
+    renderRincian();
+  } else if (produkList.length === 0) {
+    alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
+  }
 });
+
 </script>
 
 <script src="function/Navigation.js?v=1"></script>
