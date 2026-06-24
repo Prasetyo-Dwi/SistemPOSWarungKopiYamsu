@@ -77,7 +77,10 @@ if (!sessionStorage.getItem('pos_role')) {
 <!-- utils.js duluan sebelum script utama -->
 <script src="function/utils.js?v=1"></script>
 <script>authGuard();</script>
-
+<script>
+// Load produk dari Sheets dulu, baru baca dari localStorage
+loadProdukDariSheet(() => {
+let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
 <script>
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
 
