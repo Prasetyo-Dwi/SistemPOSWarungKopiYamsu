@@ -280,18 +280,23 @@ function updatePreview() {
 
 // Kirim ke Google Sheets lewat SHEET_URL dari utils.js
 function kirimKeSheet(data) {
+  const now = new Date();
+  const jam = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  const emoji = KAT_EMOJI[data.kategori] || '📦';
+  
   const params = new URLSearchParams({
-    action:   'simpanPengeluaran',
-    tanggal:  data.tanggalSheet,
-    nama:     data.nama,
-    kategori: KAT_LABEL[data.kategori],
-    harga:    data.harga,
-    jumlah:   data.jumlah,
-    total:    data.total
+    action:    'simpanPengeluaran',
+    tanggal:   data.tanggalSheet,
+    nama:      data.nama,
+    kategori:  KAT_LABEL[data.kategori],
+    harga:     data.harga,
+    jumlah:    data.jumlah,
+    total:     data.total,
+    jam:       jam,           // BARU
+    emoji:     emoji          // BARU
   });
   fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
 }
-
 // Tombol simpan
 async function tambahPengeluaran() {
   const nama     = document.getElementById('inp-nama').value.trim();
