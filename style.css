@@ -32,7 +32,7 @@ body {
   flex: 1;
   overflow-y: auto;
   padding-top: 110px;
-  padding-bottom: 20px;
+  padding-bottom: 0;
   background: #f4f4f7;
 }
 
@@ -111,6 +111,7 @@ body {
 .rincian {
   flex-shrink: 0;
   margin: 0 auto;
+  padding: 16px 0;
   width: calc(100% - 32px);
   background: white;
   border-radius: 20px;
