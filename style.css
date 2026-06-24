@@ -109,8 +109,9 @@ body {
 
 /* RINCIAN */
 .rincian {
-  margin: 16px auto; /* auto biar center */
-  width: calc(100% - 32px); /* kasih jarak kiri kanan sama */
+  flex-shrink: 0;
+  margin: 0 auto;
+  width: calc(100% - 32px);
   background: white;
   border-radius: 20px;
   overflow: hidden;
