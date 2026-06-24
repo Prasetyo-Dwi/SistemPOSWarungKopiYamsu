@@ -331,8 +331,28 @@ async function tambahPengeluaran() {
 
 // Hapus satu item
 function hapusItem(id) {
-  saveList(getList().filter(x => x.id !== id));
+  const list = getList();
+  const item = list.find(x => x.id === id);
+  
+  // 1. Hapus dari localStorage
+  saveList(list.filter(x => x.id !== id));
   renderList();
+
+  // 2. Hapus dari Sheets (kalau ada)
+  if (item) {
+    hapusDariSheet(item);
+  }
+}
+
+// Kirim delete ke Google Sheets
+function hapusDariSheet(item) {
+  const params = new URLSearchParams({
+    action:    'hapusPengeluaran',
+    tanggal:   item.tanggal.split(' ')[0],  // ambil tanggal aja, format: DD/MM/YYYY
+    nama:      item.nama,
+    total:     item.total
+  });
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
 }
 
 // Hapus semua
