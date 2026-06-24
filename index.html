@@ -81,7 +81,7 @@ if (!sessionStorage.getItem('pos_role')) {
 // Load produk dari Sheets dulu, baru baca dari localStorage
 loadProdukDariSheet(() => {
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
-<script>
+
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
 
 if (produkList.length === 0) {
