@@ -191,15 +191,26 @@ function bayar() {
     const p = produkList.find(x => x.id == k);
     return { produk: p.nama, jumlah: cart[k], harga: p.harga * cart[k] };
   });
-
   const total = items.reduce((s, i) => s + i.harga, 0);
 
+  // Simpan ke localStorage
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  riwayat.unshift({ tanggal, items, total, status: 'belum' });
+  const nomorBaru = (parseInt(localStorage.getItem('nomorTransaksi') || '0') + 1);
+  localStorage.setItem('nomorTransaksi', nomorBaru);
+  riwayat.unshift({ nomor: nomorBaru, tanggal, items, total, status: 'belum' });
   localStorage.setItem('riwayat', JSON.stringify(riwayat));
 
-  syncStokKeSheet(); // dari utils.js
+  // ===== KIRIM KE SHEETS =====
+  const url = SHEET_URL
+    + '?action=simpanTransaksi'
+    + '&tanggal=' + encodeURIComponent(tanggal)
+    + '&nomor=' + encodeURIComponent(String(nomorBaru).padStart(3, '0'))
+    + '&items=' + encodeURIComponent(JSON.stringify(items));
 
+  fetch(url, { mode: 'no-cors' })
+    .catch(() => console.warn('Gagal kirim ke Sheets, data tetap tersimpan lokal'));
+
+  syncStokKeSheet();
   clearCart();
   alert('Transaksi berhasil disimpan!');
 }
