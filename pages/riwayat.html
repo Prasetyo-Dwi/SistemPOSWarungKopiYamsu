@@ -34,7 +34,7 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
+      <button class="btn-reset" onclick="loadRiwayat()">Muat Ulang Daftar</button>
       <div class="storage-info" id="storage-info">Menghitung...</div>
     </div>
 
@@ -107,7 +107,6 @@ function hitungStorage() {
 
 // ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
-  cekAutoResetRiwayat();
 
   fetch(`${SHEET_URL}?action=getRiwayat`)
     .then(res => res.json())
@@ -235,15 +234,6 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
     });
 }
 
-// ===== RESET RIWAYAT =====
-function resetRiwayat() {
-  if (!confirm('Yakin mau hapus semua riwayat?')) return;
-  localStorage.removeItem('riwayat');
-  localStorage.removeItem('nomorTransaksi');
-  localStorage.removeItem('riwayat_mulai');
-  localStorage.removeItem('pemasukan_harian');
-  loadRiwayat();
-}
 
 // ===== HELPER STOK =====
 function getProdukList() {
