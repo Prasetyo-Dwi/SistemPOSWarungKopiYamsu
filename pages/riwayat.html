@@ -12,51 +12,44 @@
 <body>
 
 <div class="phone">
-
-  <!-- HEADER -->
-  <div class="header">
-    <div class="header-top">
-      <div>
-        <div class="header-title">Riwayat</div>
-        <div class="header-sub">Transaksi hari ini</div>
-      </div>
-      <div class="header-date">
-        <div class="header-date-label" id="tgl-el">—</div>
-        <div class="header-date-val" id="total-transaksi">0 transaksi</div>
-      </div>
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="header-title">Riwayat</div>
+      <div class="header-sub">Transaksi hari ini</div>
     </div>
-
-    <!-- Baris pemasukan -->
-    <div class="header-pemasukan">
-      <span>Pemasukan hari ini</span>
-      <span id="pemasukan-hari-ini">Rp 0</span>
+    <div class="header-date">
+      <div class="header-date-label" id="tgl-el">—</div>
+      <div class="header-date-val" id="total-transaksi">0 transaksi</div>
     </div>
-
-    <!-- ACTIONS -->
-    <div class="header-actions">
-      <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
-      <div class="storage-info" id="storage-info">Menghitung...</div>
-    </div>
-
   </div>
 
-  <!-- LIST -->
-  <div class="riwayat-list" id="riwayat-list">
-    <div class="kosong-state">Belum ada transaksi hari ini</div>
+  <div class="header-pemasukan">
+    <span>Pemasukan hari ini</span>
+    <span id="pemasukan-hari-ini">Rp 0</span>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
+    <div class="storage-info" id="storage-info">Menghitung...</div>
   </div>
 </div>
 
+<!-- LIST - TANPA scroll-area! -->
+<div class="riwayat-list" id="riwayat-list">
+  <div class="kosong-state">Belum ada transaksi hari ini</div>
+</div>
 
-  <!-- FOOTER NAV -->
-  <div class="footer-nav">
-    <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-    Buka Spreadsheet
-  </a>
-    <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
-    <div class="nav-item" data-page="produk"><p>Produk</p></div>
-    <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
-  </div>
+<!-- TOMBOL SHEET -->
+<a class="btn-sheet" href="..." target="_blank">Buka Spreadsheet</a>
+
+<!-- FOOTER NAV -->
+<div class="footer-nav">
+  <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
+  <div class="nav-item" data-page="produk"><p>Produk</p></div>
+  <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
+</div>
 
 <script src="../function/utils.js"></script>
 <script>authGuard();</script>
