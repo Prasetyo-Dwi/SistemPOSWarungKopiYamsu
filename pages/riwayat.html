@@ -1,460 +1,685 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Riwayat — Warkop Yamsu</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="riwayat.css">
-</head>
-<body>
-
-<div class="phone">
-
-  <!-- HEADER -->
-  <div class="header">
-    <div class="header-top">
-      <div>
-        <div class="header-title">Riwayat</div>
-        <div class="header-sub">Transaksi hari ini</div>
-      </div>
-      <div class="header-date">
-        <div class="header-date-label" id="tgl-el">—</div>
-        <div class="header-date-val" id="total-transaksi">0 transaksi</div>
-      </div>
-    </div>
-
-    <!-- Baris pemasukan -->
-    <div class="header-pemasukan">
-      <span>Pemasukan hari ini</span>
-      <span id="pemasukan-hari-ini">Rp 0</span>
-    </div>
-
-    <!-- ACTIONS -->
-    <div class="header-actions">
-      <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
-      <div class="storage-info" id="storage-info">Menghitung...</div>
-    </div>
-
-  </div>
-
-  <!-- SCROLL AREA -->
-  <div class="scroll-area">
-
-    <!-- LIST -->
-    <div class="riwayat-list" id="riwayat-list">
-      <div class="kosong-state">Belum ada transaksi hari ini</div>
-    </div>
-
-  </div><!-- end scroll-area -->
-
- <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-  </a>
-  
-  <!-- FOOTER NAV -->
-  <div class="footer-nav">
- <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-  </a>
-    <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
-    <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
-    <div class="nav-item" data-page="pengeluaran"><p>Pengeluaran</p></div>
-  </div>
-
-</div>
-
-<script src="../function/utils.js"></script>
-<script>authGuard();</script>
-
-<script>
-
-// ===== CLOCK =====
-function tick() {
-  const now = new Date();
-  document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
-    weekday:'short', day:'numeric', month:'long', year:'numeric'
-  });
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('📦 Tutup Buku')
+    .addItem('Arsipkan & Tutup Buku Bulan Ini', 'arsipkanBulanIni')
+    .addToUi();
 }
-tick();
 
-// ===== HITUNG STORAGE =====
-function hitungStorage() {
-  let total = 0;
-  for (let key in localStorage) {
-    if (localStorage.hasOwnProperty(key)) {
-      total += (localStorage[key].length + key.length) * 2;
+// ===== NORMALIZE TANGGAL UNTUK PERBANDINGAN (VERSI AMAN) =====
+// Selalu mengembalikan format "DD/MM/YYYY".
+// Kalau gagal parse, akan di-log dan kembalikan string aslinya (tidak melempar error)
+// supaya tidak merusak alur lain seperti auto-fill kolom Tanggal di Transaksi.
+function formatTanggal(date) {
+  try {
+    // Kalau berupa objek Date asli dari Google Sheets
+    if (date instanceof Date) {
+      const d = String(date.getDate()).padStart(2, '0');
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const y = date.getFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    if (date === null || date === undefined || date === '') {
+      return '';
+    }
+
+    const str = date.toString().trim();
+
+    // Coba match format dengan separator slash: D/M/Y atau DD/MM/YYYY
+    let match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (match) {
+      const [, d, m, y] = match;
+      const yFull = y.length === 2 ? '20' + y : y;
+      return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + yFull;
+    }
+
+    // Coba match format ISO: YYYY-MM-DD
+    match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (match) {
+      const [, y, m, d] = match;
+      return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + y;
+    }
+
+    // Coba parse pakai Date langsung (misal format "Tue Jun 23 2026 ...")
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      const d = String(parsed.getDate()).padStart(2, '0');
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const y = parsed.getFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    // Gagal total parse -> log biar ketauan, tapi jangan throw
+    Logger.log('formatTanggal: GAGAL PARSE -> "' + str + '" (dikembalikan apa adanya)');
+    return str;
+
+  } catch (err) {
+    Logger.log('formatTanggal ERROR: ' + err.message + ' | input: ' + date);
+    return date ? date.toString() : '';
+  }
+}
+
+function doGet(e) {
+  Logger.log('doGet dipanggil dengan params: ' + JSON.stringify(e.parameter));
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ===== ACTION: SIMPAN PRODUK LENGKAP DARI PRODUK.HTML =====
+  if (e.parameter.action === 'simpanProduk') {
+    try {
+      const sheet = ss.getSheetByName('Produk');
+      if (!sheet) throw new Error('Sheet "Produk" tidak ditemukan!');
+
+      const produk = JSON.parse(e.parameter.produk);
+
+      // --- Cek duplikat nama produk (case-insensitive) ---
+      const namaSet = new Set();
+      produk.forEach(p => {
+        const key = p.nama.toString().toUpperCase().trim();
+        if (namaSet.has(key)) {
+          throw new Error('Nama produk duplikat terdeteksi: "' + p.nama + '". Hapus salah satu sebelum menyimpan.');
+        }
+        namaSet.add(key);
+      });
+
+      // --- Update sheet Produk ---
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 6).clearContent();
+
+      produk.forEach((p, i) => {
+        const row = i + 2;
+        sheet.getRange(row, 1, 1, 6).setValues([[
+          p.nama, p.harga, p.stok, p.emoji, p.cat, p.id
+        ]]);
+      });
+
+      applyBorderProduk(sheet);
+
+      // --- Update sheet Stok juga (dalam request yang sama) ---
+      updateStokDariProduk(ss, produk);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
   }
-  const usedKB = total / 1024;
-  const max = 5120;
-  const persen = ((usedKB / max) * 100).toFixed(1);
-  const usedText = usedKB < 1024
-    ? usedKB.toFixed(1) + ' KB'
-    : (usedKB / 1024).toFixed(2) + ' MB';
 
-  const el = document.getElementById('storage-info');
-  el.textContent = usedText + ' / 5 MB (' + persen + '%)';
+  // ===== ACTION: GET PRODUK UNTUK LOAD DI APP =====
+  if (e.parameter.action === 'getProduk') {
+    try {
+      const sheet = ss.getSheetByName('Produk');
+      if (!sheet) throw new Error('Sheet "Produk" tidak ditemukan!');
 
-  el.classList.remove('safe', 'warn', 'danger');
-  if (persen >= 80) el.classList.add('danger');
-  else if (persen >= 60) el.classList.add('warn');
-  else el.classList.add('safe');
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', produk: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+      const produk = data
+        .filter(r => r[0]) // skip baris kosong
+        .map(r => ({
+          nama:  r[0],
+          harga: r[1],
+          stok:  r[2],
+          emoji: r[3],
+          cat:   r[4],
+          id:    r[5]
+        }));
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', produk }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: GET PENGELUARAN UNTUK LOAD DI APP =====
+  if (e.parameter.action === 'getPengeluaran') {
+    try {
+      const sheet = ss.getSheetByName('Pengeluaran');
+      if (!sheet) throw new Error('Sheet "Pengeluaran" tidak ditemukan!');
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 3) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', pengeluaran: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getRange(3, 1, lastRow - 2, 9).getValues();
+
+      const today = new Date();
+      const todayStr = formatTanggal(today);
+
+      const pengeluaran = data
+        .filter(r => {
+          if (!r[0]) return false;
+          const rowTanggal = formatTanggal(r[0]);
+          return rowTanggal === todayStr;
+        })
+        .map((r) => {
+          const katRaw = r[2] ? r[2].toString().toLowerCase().trim() : '';
+          let kategoriKey = 'lainnya';
+          if (katRaw.includes('bahan')) kategoriKey = 'bahan';
+          else if (katRaw.includes('operasional')) kategoriKey = 'operasional';
+          else if (katRaw.includes('gaji')) kategoriKey = 'gaji';
+
+          return {
+            id: Date.now() + Math.random(),
+            tanggal: formatTanggal(r[0]),
+            nama: r[1] ? r[1].toString() : '—',
+            kategori: kategoriKey,
+            harga: Number(r[3]) || 0,
+            jumlah: Number(r[4]) || 0,
+            total: Number(r[5]) || 0,
+            jam: r[6] ? r[6].toString() : '—',
+            emoji: r[7] ? r[7].toString() : '📦'
+          };
+        });
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', pengeluaran }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: UPDATE STOK DARI PRODUK.HTML =====
+  if (e.parameter.action === 'updateStok') {
+    try {
+      const stokSheet = ss.getSheetByName('Stok');
+      const produk = JSON.parse(e.parameter.produk);
+      const headerRow = stokSheet.getRange(1, 1, 1, stokSheet.getLastColumn()).getValues()[0];
+
+      produk.forEach(p => {
+        const namaProduk = p.nama.toString().toUpperCase();
+        let colIndex = -1;
+
+        for (let c = 1; c < headerRow.length; c++) {
+          if (headerRow[c] && headerRow[c].toString().toUpperCase() === namaProduk) {
+            colIndex = c + 1;
+            break;
+          }
+        }
+
+        if (colIndex === -1) {
+          const newCol = stokSheet.getLastColumn() + 1;
+          stokSheet.getRange(1, newCol).setValue(p.nama.toString().toUpperCase());
+          stokSheet.getRange(1, newCol).setBackground('#FFFF00');
+          stokSheet.getRange(1, newCol).setFontWeight('bold');
+          stokSheet.getRange(1, newCol).setHorizontalAlignment('center');
+          stokSheet.getRange(1, newCol).setBorder(true, true, true, true, true, true);
+          colIndex = newCol;
+        }
+
+        stokSheet.getRange(2, colIndex).setValue(p.stok);
+        stokSheet.getRange(2, colIndex).setHorizontalAlignment('center');
+        stokSheet.getRange(2, colIndex).setBorder(true, true, true, true, true, true);
+      });
+
+      applyBorderStok(stokSheet);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: SIMPAN PENGELUARAN DARI PENGELUARAN.HTML =====
+  if (e.parameter.action === 'simpanPengeluaran') {
+    try {
+      const sheet = ss.getSheetByName('Pengeluaran');
+
+      const tanggalRaw = e.parameter.tanggal;
+      const tanggal = formatTanggal(tanggalRaw.split(' ')[0]);
+      const nama     = e.parameter.nama;
+      const kategori = e.parameter.kategori;
+      const harga    = Number(e.parameter.harga);
+      const jumlah   = Number(e.parameter.jumlah);
+      const total    = Number(e.parameter.total);
+      const jam      = e.parameter.jam;
+      const emoji    = e.parameter.emoji;
+      const keterangan = '';
+
+      const lastRow = cariBarisKosong(sheet, 1);
+
+      // Paksa kolom tanggal sebagai TEXT supaya tidak auto-convert salah locale
+      sheet.getRange(lastRow, 1).setNumberFormat('@');
+      sheet.getRange(lastRow, 1, 1, 9).setValues([[tanggal, nama, kategori, harga, jumlah, total, jam, emoji, keterangan]]);
+      sheet.getRange(lastRow, 1, 1, 9).setHorizontalAlignment('center');
+      sheet.getRange(lastRow, 2).setHorizontalAlignment('left');
+      sheet.getRange(lastRow, 4).setNumberFormat('"Rp "#,##0');
+      sheet.getRange(lastRow, 6).setNumberFormat('"Rp "#,##0');
+      sheet.getRange(lastRow, 6).setFontColor('#ef4444');
+      sheet.getRange(lastRow, 8).setBackground('#BDBDBD');
+      sheet.getRange(lastRow, 9).setBackground('#BDBDBD');
+      sheet.getRange(lastRow, 1, 1, 9).setBorder(true, true, true, true, true, true);
+
+      applyBorderPengeluaran(sheet);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: HAPUS PENGELUARAN DARI PENGELUARAN.HTML =====
+  if (e.parameter.action === 'hapusPengeluaran') {
+    try {
+      const sheet = ss.getSheetByName('Pengeluaran');
+      const tanggal = e.parameter.tanggal;
+      const nama = e.parameter.nama;
+      const total = Number(e.parameter.total);
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 3) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', pengeluaran: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getRange(3, 1, lastRow - 2, 9).getValues();
+      const tanggalNormalized = formatTanggal(tanggal);
+
+      for (let i = 0; i < data.length; i++) {
+        const rowTanggalNormalized = formatTanggal(data[i][0]);
+
+        if (rowTanggalNormalized === tanggalNormalized &&
+            data[i][1] === nama &&
+            data[i][5] === total) {
+          sheet.getRange(i + 3, 1, 1, 9).clearContent();
+          break; // cuma hapus 1 baris
+        }
+      }
+
+      applyBorderPengeluaran(sheet);
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: SIMPAN TRANSAKSI DARI RIWAYAT.HTML =====
+  if (e.parameter.action === 'simpanTransaksi') {
+    try {
+      const sheet = ss.getSheetByName('Transaksi');
+
+      const tanggalRaw = e.parameter.tanggal;
+      const tanggalPart = tanggalRaw.split(' ')[0];
+      const tanggal = formatTanggal(tanggalPart);
+      const nomorTransaksi = e.parameter.nomor;
+      const items = JSON.parse(e.parameter.items);
+
+      Logger.log('simpanTransaksi -> RAW: ' + tanggalRaw + ' | PART: ' + tanggalPart + ' | HASIL: ' + tanggal);
+
+      items.forEach((item) => {
+        const lastRow = cariBarisKosong(sheet, 1);
+
+        // Paksa kolom tanggal sebagai TEXT supaya tidak ke-convert salah locale & auto-fill tetap konsisten
+        sheet.getRange(lastRow, 1).setNumberFormat('@');
+        sheet.getRange(lastRow, 1, 1, 5).setValues([[
+          tanggal, nomorTransaksi, item.produk, item.jumlah, item.harga
+        ]]);
+        sheet.getRange(lastRow, 1, 1, 5).setHorizontalAlignment('center');
+        sheet.getRange(lastRow, 5).setNumberFormat('"Rp "#,##0');
+        sheet.getRange(lastRow, 1, 1, 5).setBorder(true, true, true, true, true, true);
+      });
+
+      applyBorderTransaksi(sheet);
+      updateSheetStok(ss, tanggal, items);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message, params: e.parameter }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: LOGIN DARI LOGIN.HTML =====
+  if (e.parameter.action === 'login') {
+    const user = e.parameter.username;
+    const pass = e.parameter.password;
+
+    if (user === 'owner' && pass === 'owner123') {
+      return ContentService.createTextOutput(JSON.stringify({ success: true, role: 'owner' })).setMimeType(ContentService.MimeType.JSON);
+    } else if (user === 'kasir' && pass === 'kasir123') {
+      return ContentService.createTextOutput(JSON.stringify({ success: true, role: 'kasir' })).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      return ContentService.createTextOutput(JSON.stringify({ success: false, message: 'Username atau password salah!' })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Fallback response jika action tidak valid
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'error', message: 'Action tidak dikenali.' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ===== LOAD RIWAYAT =====
-function loadRiwayat() {
-  cekAutoResetRiwayat();
+// ===== BORDER SHEET TRANSAKSI =====
+function applyBorderTransaksi(sheet) {
+  const lastRow = sheet.getLastRow();
+  const lastCol = 5;
+  if (lastRow < 1) return;
+  sheet.getRange(1, 1, lastRow, lastCol).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 1, 1, lastCol).setFontWeight('bold');
+  sheet.getRange(1, 1, 1, lastCol).setBackground('#1e214f');
+  sheet.getRange(1, 1, 1, lastCol).setFontColor('#ffffff');
+}
 
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const list = document.getElementById('riwayat-list');
-  document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
-  hitungStorage();
+// ===== UPDATE SHEET STOK DARI DATA PRODUK (dipanggil dari simpanProduk) =====
+function updateStokDariProduk(ss, produk) {
+  const stokSheet = ss.getSheetByName('Stok');
+  if (!stokSheet) return;
 
-  document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
+  let headerRow = stokSheet.getRange(1, 1, 1, Math.max(stokSheet.getLastColumn(), 1)).getValues()[0];
+  const namaAktif = new Set(produk.map(p => p.nama.toString().toUpperCase()));
 
-  if (riwayat.length === 0) {
-    list.innerHTML = '<div class="kosong-state">Belum ada transaksi</div>';
+  for (let c = headerRow.length - 1; c >= 1; c--) {
+    const namaKolom = headerRow[c] ? headerRow[c].toString().toUpperCase() : '';
+    if (namaKolom && !namaAktif.has(namaKolom)) {
+      stokSheet.deleteColumn(c + 1);
+    }
+  }
+
+  headerRow = stokSheet.getRange(1, 1, 1, Math.max(stokSheet.getLastColumn(), 1)).getValues()[0];
+
+  produk.forEach(p => {
+    const namaProduk = p.nama.toString().toUpperCase();
+    let colIndex = -1;
+
+    for (let c = 1; c < headerRow.length; c++) {
+      if (headerRow[c] && headerRow[c].toString().toUpperCase() === namaProduk) {
+        colIndex = c + 1;
+        break;
+      }
+    }
+
+    if (colIndex === -1) {
+      const newCol = stokSheet.getLastColumn() + 1;
+      stokSheet.getRange(1, newCol).setValue(p.nama.toString().toUpperCase());
+      stokSheet.getRange(1, newCol).setBackground('#FFFF00');
+      stokSheet.getRange(1, newCol).setFontWeight('bold');
+      stokSheet.getRange(1, newCol).setHorizontalAlignment('center');
+      stokSheet.getRange(1, newCol).setBorder(true, true, true, true, true, true);
+      colIndex = newCol;
+      headerRow[newCol - 1] = p.nama.toString().toUpperCase();
+    }
+
+    stokSheet.getRange(2, colIndex).setValue(p.stok);
+    stokSheet.getRange(2, colIndex).setHorizontalAlignment('center');
+    stokSheet.getRange(2, colIndex).setBorder(true, true, true, true, true, true);
+  });
+
+  applyBorderStok(stokSheet);
+}
+
+// ===== BORDER SHEET PRODUK =====
+function applyBorderProduk(sheet) {
+  const lastRow = sheet.getLastRow();
+  const lastCol = 6;
+  if (lastRow < 1) return;
+  sheet.getRange(1, 1, lastRow, lastCol).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 1, 1, lastCol).setFontWeight('bold');
+  sheet.getRange(1, 1, 1, lastCol).setBackground('#1e214f');
+  sheet.getRange(1, 1, 1, lastCol).setFontColor('#ffffff');
+}
+
+// ===== BORDER SHEET STOK =====
+function applyBorderStok(stokSheet) {
+  const lastRow = stokSheet.getLastRow();
+  const lastCol = stokSheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return;
+  stokSheet.getRange(1, 1, lastRow, lastCol).setBorder(true, true, true, true, true, true);
+  stokSheet.getRange(2, 1, 1, lastCol).setBackground('#e8f5e9');
+  stokSheet.getRange(2, 1, 1, lastCol).setFontWeight('bold');
+}
+
+// ===== BORDER SHEET PENGELUARAN =====
+function applyBorderPengeluaran(sheet) {
+  const lastRow = sheet.getLastRow();
+  const lastCol = 6;
+  if (lastRow < 2) return;
+  sheet.getRange(1, 1, lastRow, lastCol).setBorder(true, true, true, true, true, true);
+  sheet.getRange(1, 1, 2, lastCol).setFontWeight('bold');
+  sheet.getRange(1, 1, 2, lastCol).setBackground('#1e214f');
+  sheet.getRange(1, 1, 2, lastCol).setFontColor('#ffffff');
+  sheet.getRange(1, 1, 2, lastCol).setHorizontalAlignment('center');
+}
+
+// ===== FUNGSI UPDATE SHEET STOK (HISTORY HARIAN) =====
+function updateSheetStok(ss, tanggal, items) {
+  const stokSheet = ss.getSheetByName('Stok');
+  if (!stokSheet) return;
+
+  const headerRow = stokSheet.getRange(1, 1, 1, stokSheet.getLastColumn()).getValues()[0];
+  const allData = stokSheet.getDataRange().getValues();
+  let targetRow = -1;
+
+  const tanggalNormalized = formatTanggal(tanggal);
+
+  for (let i = 2; i < allData.length; i++) {
+    const rowTanggalNormalized = formatTanggal(allData[i][0]);
+    if (rowTanggalNormalized === tanggalNormalized) {
+      targetRow = i + 1;
+      break;
+    }
+  }
+
+  if (targetRow === -1) {
+    targetRow = stokSheet.getLastRow() + 1;
+    stokSheet.getRange(targetRow, 1).setNumberFormat('@');
+    stokSheet.getRange(targetRow, 1).setValue(tanggal);
+    stokSheet.getRange(targetRow, 1).setHorizontalAlignment('center');
+  }
+
+  const stokTerkiniUpdate = [];
+
+  items.forEach((item) => {
+    const namaProduk = item.produk.toString().toUpperCase();
+    let colIndex = -1;
+
+    for (let c = 1; c < headerRow.length; c++) {
+      if (headerRow[c] && headerRow[c].toString().toUpperCase() === namaProduk) {
+        colIndex = c + 1;
+        break;
+      }
+    }
+
+    if (colIndex === -1) {
+      const newCol = stokSheet.getLastColumn() + 1;
+      stokSheet.getRange(1, newCol).setValue(item.produk.toString().toUpperCase());
+      stokSheet.getRange(1, newCol).setBackground('#FFFF00');
+      stokSheet.getRange(1, newCol).setFontWeight('bold');
+      stokSheet.getRange(1, newCol).setHorizontalAlignment('center');
+      colIndex = newCol;
+    }
+
+    const existing = stokSheet.getRange(targetRow, colIndex).getValue();
+    const newVal = (existing || 0) - item.jumlah;
+    stokSheet.getRange(targetRow, colIndex).setValue(newVal);
+    stokSheet.getRange(targetRow, colIndex).setHorizontalAlignment('center');
+
+    if (targetRow !== 2) {
+      const stokSaatIni = stokSheet.getRange(2, colIndex).getValue() || 0;
+      const stokBaru = Math.max(0, stokSaatIni - item.jumlah);
+      stokSheet.getRange(2, colIndex).setValue(stokBaru);
+      stokSheet.getRange(2, colIndex).setHorizontalAlignment('center');
+      stokTerkiniUpdate.push({ nama: item.produk, stok: stokBaru });
+    } else {
+      stokTerkiniUpdate.push({ nama: item.produk, stok: newVal });
+    }
+  });
+
+  applyBorderStok(stokSheet);
+  updateProdukDariStok(ss, stokTerkiniUpdate);
+}
+
+// ===== UPDATE SHEET PRODUK DARI HASIL TRANSAKSI =====
+function updateProdukDariStok(ss, stokUpdate) {
+  const produkSheet = ss.getSheetByName('Produk');
+  if (!produkSheet) return;
+
+  const lastRow = produkSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const data = produkSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+
+  stokUpdate.forEach(item => {
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] && data[i][0].toString().toUpperCase() === item.nama.toString().toUpperCase()) {
+        produkSheet.getRange(i + 2, 3).setValue(item.stok);
+        break;
+      }
+    }
+  });
+}
+
+// ===== CARI BARIS KOSONG PERTAMA =====
+function cariBarisKosong(sheet, kolom) {
+  const maxRow = sheet.getMaxRows();
+  const data = sheet.getRange(1, kolom, maxRow, 1).getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === '' || data[i][0] === null) {
+      return i + 1;
+    }
+  }
+  return maxRow + 1;
+}
+
+// ===== HAPUS BARIS-BARIS KOSONG =====
+function trimBarisKosong(sheet, startCol, endCol) {
+  const maxRow = sheet.getMaxRows();
+
+  let lastBarisAdaData = 0;
+  const data = sheet.getRange(1, startCol, maxRow, endCol - startCol + 1).getValues();
+  for (let i = data.length - 1; i >= 0; i--) {
+    const adaIsi = data[i].some(cell => cell !== '' && cell !== null);
+    if (adaIsi) { lastBarisAdaData = i + 1; break; }
+  }
+
+  const batasBawah = Math.max(lastBarisAdaData + 50, 100);
+  if (maxRow > batasBawah) {
+    sheet.deleteRows(batasBawah + 1, maxRow - batasBawah);
+  }
+}
+
+// ===== BEKUKAN RUMUS =====
+function bekukanRumus(sheet) {
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  range.clearContent();
+  range.setValues(values);
+}
+
+// ===== ARSIPKAN & TUTUP BUKU BULANAN =====
+function arsipkanBulanIni() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+
+  const bulanId = ['Januari','Februari','Maret','April','Mei','Juni',
+                   'Juli','Agustus','September','Oktober','November','Desember'];
+  const now   = new Date();
+  const label = bulanId[now.getMonth()] + ' ' + now.getFullYear();
+
+  const konfirmasi = ui.alert(
+    '📦 Arsipkan & Tutup Buku',
+    `Yakin mau mengarsipkan bulan ${label}?\n\n` +
+    `Yang akan terjadi:\n` +
+    `• Sheet "Transaksi" → disalin ke "Transaksi - ${label}"\n` +
+    `• Sheet "Pengeluaran" → disalin ke "Pengeluaran - ${label}"\n` +
+    `• Data di sheet aktif akan dikosongkan (header tetap)\n\n` +
+    `Pastikan semua transaksi sudah dibayar sebelum melanjutkan!`,
+    ui.ButtonSet.YES_NO
+  );
+
+  if (konfirmasi !== ui.Button.YES) {
+    ui.alert('Arsip dibatalkan.');
     return;
   }
 
-  list.innerHTML = riwayat.map((r, i) => `
-    <div class="riwayat-card" id="card-${i}">
-      <div class="card-header" onclick="toggleCard(this)">
-        <div class="card-header-left">
-          <div class="card-icon">
-            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
-          </div>
-          <div class="card-info">
-            <div class="card-title">Transaksi #${String(riwayat.length - i).padStart(3,'0')}</div>
-            <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
-          </div>
-        </div>
-        <div class="card-header-right">
-          <span class="badge-status ${r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
-            ${r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
-          </span>
-          <div class="toggle-btn">
-            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-        </div>
-      </div>
-      <div class="card-body" style="max-height:0; overflow:hidden; transition: max-height 0.4s ease;">
-        <div class="card-body-inner">
-          <div class="item-list">
-            ${r.items.map(item => `
-              <div class="item-row">
-                <span>- ${item.produk}</span>
-                <span>${item.jumlah}x ${fmt(item.harga)}</span>
-              </div>
-            `).join('')}
-          </div>
-          <hr class="divider">
-          <div class="card-footer">
-            <div>
-              <div class="total-label">TOTAL</div>
-              <div class="total-val">${fmt(r.total)}</div>
-            </div>
-            ${r.status === 'tersimpan'
-              ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
-              : `<div style="display:flex;gap:8px;">
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>
-                </div>`
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
+  try {
+    const trxSheet  = ss.getSheetByName('Transaksi');
+    const penSheet  = ss.getSheetByName('Pengeluaran');
+    const stokSheet = ss.getSheetByName('Stok');
 
-// ===== TOGGLE CARD =====
-function toggleCard(header) {
-  const card = header.closest('.riwayat-card');
-  const body = card.querySelector('.card-body');
+    const trxArsipNama = `Arsip Transaksi - ${label}`;
+    const trxLama = ss.getSheetByName(trxArsipNama);
+    if (trxLama) ss.deleteSheet(trxLama);
+    const trxArsip = trxSheet.copyTo(ss);
+    trxArsip.setName(trxArsipNama);
+    bekukanRumus(trxArsip);
 
-  if (card.classList.contains('open')) {
-    body.style.maxHeight = body.scrollHeight + 'px';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        body.style.maxHeight = '0';
-      });
-    });
-    card.classList.remove('open');
-  } else {
-    card.classList.add('open');
-    body.style.maxHeight = body.scrollHeight + 'px';
-    body.addEventListener('transitionend', () => {
-      body.style.maxHeight = 'none';
-    }, { once: true });
-  }
-}
+    const stokArsipNama = `Arsip Stok - ${label}`;
+    const stokLama = ss.getSheetByName(stokArsipNama);
+    if (stokLama) ss.deleteSheet(stokLama);
+    const stokArsip = stokSheet.copyTo(ss);
+    stokArsip.setName(stokArsipNama);
+    bekukanRumus(stokArsip);
 
-// ===== SIMPAN KE SPREADSHEET =====
-function simpanKeSheet(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-
-  const btn = document.querySelector(`#card-${index} .btn-bayar`);
-  btn.textContent = 'Memproses...';
-  btn.disabled = true;
-
-  const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
-
-  const url = SHEET_URL
-    + '?action=simpanTransaksi'
-    + '&tanggal=' + encodeURIComponent(r.tanggal)
-    + '&nomor=' + encodeURIComponent(nomorTransaksi)
-    + '&items=' + encodeURIComponent(JSON.stringify(r.items));
-
-  fetch(url, { mode: 'no-cors' })
-  .then(() => {
-    riwayat[index].status = 'tersimpan';
-    localStorage.setItem('riwayat', JSON.stringify(riwayat));
-    tambahPemasukan(r.total);
-    loadRiwayat();
-  })
-  .catch(() => {
-    btn.textContent = 'Bayar';
-    btn.disabled = false;
-    alert('Gagal konek ke server!');
-  });
-}
-
-// ===== RESET RIWAYAT =====
-function resetRiwayat() {
-  if (!confirm('Yakin mau hapus semua riwayat?')) return;
-  localStorage.removeItem('riwayat');
-  localStorage.removeItem('nomorTransaksi');
-  localStorage.removeItem('riwayat_mulai');
-  localStorage.removeItem('pemasukan_harian');
-  loadRiwayat();
-}
-
-// ===== HELPER STOK =====
-function getProdukList() {
-  return JSON.parse(localStorage.getItem('produk_list') || '[]');
-}
-function saveProdukList(list) {
-  localStorage.setItem('produk_list', JSON.stringify(list));
-}
-function ubahStokProduk(namaProduk, delta) {
-  // delta positif = tambah stok, negatif = kurangi stok
-  const list = getProdukList();
-  const p = list.find(x => x.nama.toLowerCase() === namaProduk.toLowerCase());
-  if (p) {
-    p.stok = Math.max(0, p.stok + delta);
-    saveProdukList(list);
-    syncStokKeSheet();
-  }
-}
-
-// ===== EDIT TRANSAKSI =====
-let editIndex = -1;
-let itemsSebelumEdit = []; // snapshot qty sebelum edit untuk hitung selisih
-
-function bukaEdit(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-  editIndex = index;
-  // Simpan snapshot item sebelum edit
-  itemsSebelumEdit = r.items.map(x => ({ ...x }));
-
-  renderModalEdit(r.items);
-  document.getElementById('modal-edit-overlay').classList.add('active');
-}
-
-function renderModalEdit(items) {
-  document.getElementById('modal-edit-body').innerHTML = `
-    <div id="edit-items">
-      ${items.map((item, i) => `
-        <div class="edit-item-row" id="edit-row-${i}" data-nama="${item.produk}" data-harga="${item.harga}">
-          <div class="edit-item-info">
-            <span class="edit-item-nama">${item.produk}</span>
-            <span class="edit-item-harga">${fmt(item.harga)}</span>
-          </div>
-          <div class="edit-qty-control">
-            <button onclick="editQty(${i}, -1)">−</button>
-            <span id="edit-qty-${i}">${item.jumlah}</span>
-            <button onclick="editQty(${i}, 1)">+</button>
-            <button class="btn-hapus-row" onclick="hapusItemEdit(${i})">🗑️</button>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-    <button class="btn-tambah-item" onclick="bukaPilihProduk()">+ Tambah Produk</button>
-  `;
-}
-
-function editQty(i, delta) {
-  const span = document.getElementById(`edit-qty-${i}`);
-  const cur = parseInt(span.textContent) || 1;
-  const baru = Math.max(1, cur + delta);
-  span.textContent = baru;
-}
-
-function hapusItemEdit(i) {
-  const row = document.getElementById(`edit-row-${i}`);
-  if (row) row.remove();
-  // reindex
-  document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
-    el.id = `edit-row-${idx}`;
-    el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
-    el.querySelector('[id^="edit-qty-"]').id = `edit-qty-${idx}`;
-    const qtyBtns = el.querySelectorAll('.edit-qty-control button');
-    qtyBtns[0].setAttribute('onclick', `editQty(${idx}, -1)`);
-    qtyBtns[1].setAttribute('onclick', `editQty(${idx}, 1)`);
-  });
-}
-
-function simpanEdit() {
-  if (editIndex === -1) return;
-
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
-  const itemsBaru = [];
-  rows.forEach(row => {
-    const produk = row.dataset.nama;
-    const harga  = parseInt(row.dataset.harga) || 0;
-    const jumlah = parseInt(row.querySelector('[id^="edit-qty-"]').textContent) || 1;
-    if (produk) itemsBaru.push({ produk, jumlah, harga });
-  });
-
-  if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
-
-  // Hitung selisih stok per produk
-  // Buat map qty sebelum dan sesudah
-  const mapSebelum = {};
-  itemsSebelumEdit.forEach(x => {
-    mapSebelum[x.produk.toLowerCase()] = (mapSebelum[x.produk.toLowerCase()] || 0) + x.jumlah;
-  });
-  const mapBaru = {};
-  itemsBaru.forEach(x => {
-    mapBaru[x.produk.toLowerCase()] = { nama: x.produk, qty: (mapBaru[x.produk.toLowerCase()]?.qty || 0) + x.jumlah };
-  });
-
-  // Kembalikan stok untuk semua produk lama dulu
-  itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
-  // Kurangi stok dengan qty baru
-  itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
-
-  // Update riwayat
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
-  riwayat[editIndex].items = itemsBaru;
-  riwayat[editIndex].total = total;
-  localStorage.setItem('riwayat', JSON.stringify(riwayat));
-
-  tutupModalEdit();
-  loadRiwayat();
-}
-
-function tutupModalEdit() {
-  document.getElementById('modal-edit-overlay').classList.remove('active');
-  editIndex = -1;
-  itemsSebelumEdit = [];
-}
-
-// ===== PILIH PRODUK (untuk tambah item di edit) =====
-function bukaPilihProduk() {
-  const produkList = getProdukList();
-  const grid = document.getElementById('produk-picker-grid');
-  grid.innerHTML = produkList.map((p, i) => `
-    <div class="picker-item ${p.stok <= 0 ? 'picker-habis' : ''}" onclick="${p.stok > 0 ? `pilihProduk(${i})` : ''}">
-      <div class="picker-emoji">${p.emoji}</div>
-      <div class="picker-nama">${p.nama}</div>
-      <div class="picker-harga">${fmt(p.harga)}</div>
-      <div class="picker-stok ${p.stok <= 5 ? 'stok-tipis' : ''}">Stok: ${p.stok}</div>
-    </div>
-  `).join('');
-  document.getElementById('modal-picker-overlay').classList.add('active');
-}
-
-function pilihProduk(idx) {
-  const produkList = getProdukList();
-  const p = produkList[idx];
-  if (!p) return;
-
-  // Cek apakah produk ini sudah ada di edit items
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
-  let found = false;
-  rows.forEach(row => {
-    if (row.dataset.nama.toLowerCase() === p.nama.toLowerCase()) {
-      // Tambah qty yang sudah ada
-      const qtyEl = row.querySelector('[id^="edit-qty-"]');
-      qtyEl.textContent = parseInt(qtyEl.textContent) + 1;
-      found = true;
+    const trxLastRow = trxSheet.getLastRow();
+    if (trxLastRow > 1) {
+      trxSheet.getRange(2, 1, trxLastRow - 1, 5).clearContent();
     }
-  });
+    trimBarisKosong(trxSheet, 1, 5);
 
-  if (!found) {
-    // Tambah baris baru
-    const container = document.getElementById('edit-items');
-    const idx2 = container.querySelectorAll('.edit-item-row').length;
-    const div = document.createElement('div');
-    div.className = 'edit-item-row';
-    div.id = `edit-row-${idx2}`;
-    div.dataset.nama = p.nama;
-    div.dataset.harga = p.harga;
-    div.innerHTML = `
-      <div class="edit-item-info">
-        <span class="edit-item-nama">${p.nama}</span>
-        <span class="edit-item-harga">${fmt(p.harga)}</span>
-      </div>
-      <div class="edit-qty-control">
-        <button onclick="editQty(${idx2}, -1)">−</button>
-        <span id="edit-qty-${idx2}">1</span>
-        <button onclick="editQty(${idx2}, 1)">+</button>
-        <button class="btn-hapus-row" onclick="hapusItemEdit(${idx2})">🗑️</button>
-      </div>
-    `;
-    container.appendChild(div);
+    const penLastRow = penSheet.getLastRow();
+    if (penLastRow > 2) {
+      penSheet.getRange(3, 1, penLastRow - 2, 6).clearContent();
+    }
+    trimBarisKosong(penSheet, 2, 6);
+
+    const stokLastRow = stokSheet.getLastRow();
+    if (stokLastRow > 2) {
+      stokSheet.deleteRows(3, stokLastRow - 2);
+    }
+
+    ss.setActiveSheet(trxSheet);
+
+    ui.alert(
+      '✅ Berhasil!',
+      `Bulan ${label} berhasil diarsipkan!\n\n` +
+      `Sheet arsip:\n• ${trxArsipNama}\n• ${stokArsipNama}\n\n` +
+      `Sheet Transaksi, Pengeluaran & Stok sudah bersih untuk bulan berikutnya.`,
+      ui.ButtonSet.OK
+    );
+
+  } catch(err) {
+    ui.alert('❌ Error', 'Gagal mengarsipkan: ' + err.message, ui.ButtonSet.OK);
   }
-
-  tutupPicker();
 }
-
-function tutupPicker() {
-  document.getElementById('modal-picker-overlay').classList.remove('active');
-}
-
-loadRiwayat();
-</script>
-
-<!-- MODAL EDIT TRANSAKSI -->
-<div class="modal-overlay" id="modal-edit-overlay" onclick="tutupModalEdit()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div class="modal-title">Edit Transaksi</div>
-      <button class="modal-close" onclick="tutupModalEdit()">×</button>
-    </div>
-    <div class="modal-body" id="modal-edit-body"></div>
-    <div class="modal-footer">
-      <button class="btn-modal-cancel" onclick="tutupModalEdit()">Batal</button>
-      <button class="btn-modal-save" onclick="simpanEdit()">Simpan</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL PILIH PRODUK -->
-<div class="modal-overlay" id="modal-picker-overlay" onclick="tutupPicker()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div class="modal-title">Pilih Produk</div>
-      <button class="modal-close" onclick="tutupPicker()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="produk-picker-grid" id="produk-picker-grid"></div>
-    </div>
-  </div>
-</div>
-
-<script src="../function/Navigation.js"></script>
-</body>
-</html>
