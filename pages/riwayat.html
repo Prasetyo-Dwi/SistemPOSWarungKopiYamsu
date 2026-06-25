@@ -6,12 +6,8 @@ function onOpen() {
 }
 
 // ===== NORMALIZE TANGGAL UNTUK PERBANDINGAN (VERSI AMAN) =====
-// Selalu mengembalikan format "DD/MM/YYYY".
-// Kalau gagal parse, akan di-log dan kembalikan string aslinya (tidak melempar error)
-// supaya tidak merusak alur lain seperti auto-fill kolom Tanggal di Transaksi.
 function formatTanggal(date) {
   try {
-    // Kalau berupa objek Date asli dari Google Sheets
     if (date instanceof Date) {
       const d = String(date.getDate()).padStart(2, '0');
       const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -25,7 +21,6 @@ function formatTanggal(date) {
 
     const str = date.toString().trim();
 
-    // Coba match format dengan separator slash: D/M/Y atau DD/MM/YYYY
     let match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
     if (match) {
       const [, d, m, y] = match;
@@ -33,14 +28,12 @@ function formatTanggal(date) {
       return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + yFull;
     }
 
-    // Coba match format ISO: YYYY-MM-DD
     match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (match) {
       const [, y, m, d] = match;
       return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + y;
     }
 
-    // Coba parse pakai Date langsung (misal format "Tue Jun 23 2026 ...")
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime())) {
       const d = String(parsed.getDate()).padStart(2, '0');
@@ -49,7 +42,6 @@ function formatTanggal(date) {
       return `${d}/${m}/${y}`;
     }
 
-    // Gagal total parse -> log biar ketauan, tapi jangan throw
     Logger.log('formatTanggal: GAGAL PARSE -> "' + str + '" (dikembalikan apa adanya)');
     return str;
 
@@ -72,7 +64,6 @@ function doGet(e) {
 
       const produk = JSON.parse(e.parameter.produk);
 
-      // --- Cek duplikat nama produk (case-insensitive) ---
       const namaSet = new Set();
       produk.forEach(p => {
         const key = p.nama.toString().toUpperCase().trim();
@@ -82,7 +73,6 @@ function doGet(e) {
         namaSet.add(key);
       });
 
-      // --- Update sheet Produk ---
       const lastRow = sheet.getLastRow();
       if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 6).clearContent();
 
@@ -94,8 +84,6 @@ function doGet(e) {
       });
 
       applyBorderProduk(sheet);
-
-      // --- Update sheet Stok juga (dalam request yang sama) ---
       updateStokDariProduk(ss, produk);
 
       return ContentService
@@ -124,7 +112,7 @@ function doGet(e) {
 
       const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
       const produk = data
-        .filter(r => r[0]) // skip baris kosong
+        .filter(r => r[0])
         .map(r => ({
           nama:  r[0],
           harga: r[1],
@@ -264,7 +252,6 @@ function doGet(e) {
 
       const lastRow = cariBarisKosong(sheet, 1);
 
-      // Paksa kolom tanggal sebagai TEXT supaya tidak auto-convert salah locale
       sheet.getRange(lastRow, 1).setNumberFormat('@');
       sheet.getRange(lastRow, 1, 1, 9).setValues([[tanggal, nama, kategori, harga, jumlah, total, jam, emoji, keterangan]]);
       sheet.getRange(lastRow, 1, 1, 9).setHorizontalAlignment('center');
@@ -314,7 +301,7 @@ function doGet(e) {
             data[i][1] === nama &&
             data[i][5] === total) {
           sheet.getRange(i + 3, 1, 1, 9).clearContent();
-          break; // cuma hapus 1 baris
+          break;
         }
       }
 
@@ -330,10 +317,12 @@ function doGet(e) {
     }
   }
 
-  // ===== ACTION: SIMPAN TRANSAKSI DARI RIWAYAT.HTML =====
+  // ===== ACTION: SIMPAN TRANSAKSI KE DUA SHEET (TRANSAKSI + RIWAYAT) =====
   if (e.parameter.action === 'simpanTransaksi') {
     try {
-      const sheet = ss.getSheetByName('Transaksi');
+      const trxSheet = ss.getSheetByName('Transaksi');
+      const riwayatSheet = ss.getSheetByName('Riwayat');
+      if (!trxSheet || !riwayatSheet) throw new Error('Sheet Transaksi atau Riwayat tidak ditemukan!');
 
       const tanggalRaw = e.parameter.tanggal;
       const tanggalPart = tanggalRaw.split(' ')[0];
@@ -341,22 +330,32 @@ function doGet(e) {
       const nomorTransaksi = e.parameter.nomor;
       const items = JSON.parse(e.parameter.items);
 
-      Logger.log('simpanTransaksi -> RAW: ' + tanggalRaw + ' | PART: ' + tanggalPart + ' | HASIL: ' + tanggal);
+      Logger.log('simpanTransaksi -> tanggal: ' + tanggal + ' | nomor: ' + nomorTransaksi);
 
       items.forEach((item) => {
-        const lastRow = cariBarisKosong(sheet, 1);
-
-        // Paksa kolom tanggal sebagai TEXT supaya tidak ke-convert salah locale & auto-fill tetap konsisten
-        sheet.getRange(lastRow, 1).setNumberFormat('@');
-        sheet.getRange(lastRow, 1, 1, 5).setValues([[
+        // WRITE KE TRANSAKSI (tanpa status)
+        const trxLastRow = cariBarisKosong(trxSheet, 1);
+        trxSheet.getRange(trxLastRow, 1).setNumberFormat('@');
+        trxSheet.getRange(trxLastRow, 1, 1, 5).setValues([[
           tanggal, nomorTransaksi, item.produk, item.jumlah, item.harga
         ]]);
-        sheet.getRange(lastRow, 1, 1, 5).setHorizontalAlignment('center');
-        sheet.getRange(lastRow, 5).setNumberFormat('"Rp "#,##0');
-        sheet.getRange(lastRow, 1, 1, 5).setBorder(true, true, true, true, true, true);
+        trxSheet.getRange(trxLastRow, 1, 1, 5).setHorizontalAlignment('center');
+        trxSheet.getRange(trxLastRow, 5).setNumberFormat('"Rp "#,##0');
+        trxSheet.getRange(trxLastRow, 1, 1, 5).setBorder(true, true, true, true, true, true);
+
+        // WRITE KE RIWAYAT (dengan status = belum)
+        const rwLastRow = cariBarisKosong(riwayatSheet, 1);
+        riwayatSheet.getRange(rwLastRow, 1).setNumberFormat('@');
+        riwayatSheet.getRange(rwLastRow, 1, 1, 6).setValues([[
+          tanggal, nomorTransaksi, item.produk, item.jumlah, item.harga, 'belum'
+        ]]);
+        riwayatSheet.getRange(rwLastRow, 1, 1, 6).setHorizontalAlignment('center');
+        riwayatSheet.getRange(rwLastRow, 5).setNumberFormat('"Rp "#,##0');
+        riwayatSheet.getRange(rwLastRow, 1, 1, 6).setBorder(true, true, true, true, true, true);
       });
 
-      applyBorderTransaksi(sheet);
+      applyBorderTransaksi(trxSheet);
+      applyBorderTransaksi(riwayatSheet);
       updateSheetStok(ss, tanggal, items);
 
       return ContentService
@@ -365,7 +364,91 @@ function doGet(e) {
 
     } catch(err) {
       return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: err.message, params: e.parameter }))
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: GET RIWAYAT DARI SHEET RIWAYAT =====
+  if (e.parameter.action === 'getRiwayat') {
+    try {
+      const sheet = ss.getSheetByName('Riwayat');
+      if (!sheet) throw new Error('Sheet "Riwayat" tidak ditemukan!');
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', riwayat: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+      const grouped = {};
+      data.forEach(row => {
+        if (!row[0]) return;
+        
+        const tanggal = formatTanggal(row[0]);
+        const nomor = row[1] ? row[1].toString() : '';
+        const produk = row[2] ? row[2].toString() : '';
+        const jumlah = Number(row[3]) || 0;
+        const harga = Number(row[4]) || 0;
+        const status = row[5] ? row[5].toString() : 'belum';
+
+        if (!nomor) return;
+
+        if (!grouped[nomor]) {
+          grouped[nomor] = {
+            nomor,
+            tanggal,
+            items: [],
+            total: 0,
+            status
+          };
+        }
+
+        grouped[nomor].items.push({ produk, jumlah, harga });
+        grouped[nomor].total += harga * jumlah;
+      });
+
+      const riwayat = Object.values(grouped).sort((a, b) => b.nomor - a.nomor);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', riwayat }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // ===== ACTION: UPDATE STATUS TRANSAKSI DI SHEET RIWAYAT =====
+  if (e.parameter.action === 'updateStatusTransaksi') {
+    try {
+      const sheet = ss.getSheetByName('Riwayat');
+      if (!sheet) throw new Error('Sheet "Riwayat" tidak ditemukan!');
+
+      const nomor = e.parameter.nomor;
+      const statusBaru = e.parameter.status;
+
+      const lastRow = sheet.getLastRow();
+      const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+      data.forEach((row, i) => {
+        if (row[1] && row[1].toString() === nomor.toString()) {
+          sheet.getRange(i + 2, 6).setValue(statusBaru);
+        }
+      });
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: err.message }))
         .setMimeType(ContentService.MimeType.JSON);
     }
   }
@@ -384,7 +467,6 @@ function doGet(e) {
     }
   }
 
-  // Fallback response jika action tidak valid
   return ContentService
     .createTextOutput(JSON.stringify({ status: 'error', message: 'Action tidak dikenali.' }))
     .setMimeType(ContentService.MimeType.JSON);
@@ -393,7 +475,7 @@ function doGet(e) {
 // ===== BORDER SHEET TRANSAKSI =====
 function applyBorderTransaksi(sheet) {
   const lastRow = sheet.getLastRow();
-  const lastCol = 5;
+  const lastCol = sheet === ss.getSheetByName('Riwayat') ? 6 : 5;
   if (lastRow < 1) return;
   sheet.getRange(1, 1, lastRow, lastCol).setBorder(true, true, true, true, true, true);
   sheet.getRange(1, 1, 1, lastCol).setFontWeight('bold');
@@ -401,7 +483,7 @@ function applyBorderTransaksi(sheet) {
   sheet.getRange(1, 1, 1, lastCol).setFontColor('#ffffff');
 }
 
-// ===== UPDATE SHEET STOK DARI DATA PRODUK (dipanggil dari simpanProduk) =====
+// ===== UPDATE SHEET STOK DARI DATA PRODUK =====
 function updateStokDariProduk(ss, produk) {
   const stokSheet = ss.getSheetByName('Stok');
   if (!stokSheet) return;
