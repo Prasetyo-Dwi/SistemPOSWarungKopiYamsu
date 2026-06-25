@@ -370,7 +370,7 @@ function bukaPilihProduk() {
 async function hapusTransaksi(nomor) {
   if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3,'0')}?`)) return;
   try {
-    const res = await fetch(`${SCRIPT_URL}?action=hapusTransaksi&nomor=${nomor}`);
+    const res = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
     const data = await res.json();
     if (data.status === 'ok') {
       await loadRiwayat(); // ganti dengan nama function refresh riwayat yang kamu punya
