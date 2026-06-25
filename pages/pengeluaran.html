@@ -144,6 +144,34 @@ const KAT_CLASS = { bahan: 'kat-bahan', operasional: 'kat-operasional', gaji: 'k
 function getList() { return JSON.parse(localStorage.getItem('pengeluaran') || '[]'); }
 function saveList(list) { localStorage.setItem('pengeluaran', JSON.stringify(list)); }
 
+// ===== GLOBAL FUNCTIONS =====
+function hapusItem(id) {
+  const list = getList();
+  const item = list.find(x => x.id === id);
+  saveList(list.filter(x => x.id !== id));
+  renderList();
+  if (item) hapusDariSheet(item);
+}
+
+function hapusDariSheet(item) {
+  const tanggalPart = item.tanggal ? item.tanggal.split(' ')[0] : '';
+  const params = new URLSearchParams({
+    action: 'hapusPengeluaran',
+    tanggal: tanggalPart,
+    nama: item.nama || '',
+    total: item.total || 0
+  });
+  if (SHEET_URL) {
+    fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
+  }
+}
+
+function resetSemua() {
+  if (!confirm('Hapus semua data pengeluaran?')) return;
+  localStorage.removeItem('pengeluaran');
+  renderList();
+}
+
 function tambahPengeluaran() {
   const nama = document.getElementById('inp-nama').value.trim();
   const harga = parseInt(document.getElementById('inp-harga').value);
@@ -155,8 +183,11 @@ function tambahPengeluaran() {
   const list = getList();
   list.unshift({ id: Date.now(), nama, harga, jumlah, total, kategori, tanggal });
   saveList(list);
+  document.getElementById('inp-nama').value = '';
+  document.getElementById('inp-harga').value = '';
+  document.getElementById('inp-jumlah').value = '1';
   renderList();
-  // Sync ke sheet (background)
+  // Sync ke sheet
   const p = new URLSearchParams({action:'simpanPengeluaran',tanggal:new Date().toLocaleDateString('id-ID'),nama,kategori:KAT_LABEL[kategori],harga,jumlah,total,jam:new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),emoji:KAT_EMOJI[kategori]});
   fetch(`${SHEET_URL}?${p}`,{mode:'no-cors'});
 }
@@ -175,6 +206,13 @@ function refreshPengeluaran() {
 function renderList() {
   const list = getList();
   document.getElementById('total-hari-ini').textContent = fmt(list.reduce((s, x) => s + x.total, 0));
+  document.getElementById('info-jumlah').textContent = list.length + ' pengeluaran';
+  
+  if (list.length === 0) {
+    document.getElementById('list-pengeluaran').innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px 20px;">Belum ada pengeluaran dicatat</div>';
+    return;
+  }
+  
   document.getElementById('list-pengeluaran').innerHTML = list.map(x => `
     <div class="item-card">
       <div class="item-icon ${KAT_CLASS[x.kategori]}">${KAT_EMOJI[x.kategori]}</div>
@@ -182,9 +220,13 @@ function renderList() {
         <div class="item-name">${x.nama}</div>
         <div class="item-meta">${KAT_LABEL[x.kategori]} · ${x.tanggal}</div>
       </div>
-      <div class="item-amount">−${fmt(x.total)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <div class="item-amount">−${fmt(x.total)}</div>
+        <button onclick="hapusItem(${x.id})" style="border:none;background:transparent;color:var(--muted);font-size:18px;cursor:pointer;">×</button>
+      </div>
     </div>`).join('');
 }
+
 renderList();
 </script>
 <script src="../function/Navigation.js?v=1"></script>
