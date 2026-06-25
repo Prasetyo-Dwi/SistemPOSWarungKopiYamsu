@@ -174,7 +174,7 @@ function renderRiwayatList(riwayat) {
             ${r.status === 'lunas' || r.status === 'tersimpan'
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
-                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}')">Hapus</button>
+                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', this)">Hapus</button>
                   <button class="btn-edit-trx" onclick="bukaEdit(${i})">Edit</button>
                   <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
                 </div>`
@@ -319,7 +319,7 @@ function hapusItemEdit(i) {
   });
 }
 
-function simpanEdit() {
+async function simpanEdit() {
   if (editIndex === -1) return;
 
   const rows = document.querySelectorAll('#edit-items .edit-item-row');
@@ -333,17 +333,47 @@ function simpanEdit() {
 
   if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
 
-  itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
-  itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
-
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
-  riwayat[editIndex].items = itemsBaru;
-  riwayat[editIndex].total = total;
-  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+  const r = riwayat[editIndex];
+  if (!r) return;
 
-  tutupModalEdit();
-  loadRiwayat();
+  const btnSimpan = document.querySelector('.btn-modal-save');
+  if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
+
+  try {
+    const params = new URLSearchParams({
+      action: 'editTransaksi',
+      nomor: r.nomor,
+      tanggal: r.tanggal,
+      items: JSON.stringify(itemsBaru),
+      itemsLama: JSON.stringify(itemsSebelumEdit)
+    });
+
+    const res = await fetch(`${SHEET_URL}?${params}`);
+    const data = await res.json();
+
+    if (data.status !== 'ok') {
+      alert('Gagal simpan: ' + (data.message || 'Unknown error'));
+      if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+      return;
+    }
+
+    // Update localStorage
+    itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
+    itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
+
+    const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
+    riwayat[editIndex].items = itemsBaru;
+    riwayat[editIndex].total = total;
+    localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+    tutupModalEdit();
+    loadRiwayat();
+
+  } catch(err) {
+    alert('Error: ' + err.message);
+    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+  }
 }
 
 function tutupModalEdit() {
@@ -367,18 +397,21 @@ function bukaPilihProduk() {
   document.getElementById('modal-picker-overlay').classList.add('active');
 }
 
-async function hapusTransaksi(nomor) {
+async function hapusTransaksi(nomor, btn) {
   if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3,'0')}?`)) return;
+  if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
   try {
     const res = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
     const data = await res.json();
     if (data.status === 'ok') {
-      await loadRiwayat(); // ganti dengan nama function refresh riwayat yang kamu punya
+      loadRiwayat();
     } else {
       alert('Gagal hapus: ' + data.message);
+      if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
     }
   } catch(err) {
     alert('Error: ' + err.message);
+    if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
   }
 }
   
