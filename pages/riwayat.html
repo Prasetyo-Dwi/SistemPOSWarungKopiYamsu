@@ -218,6 +218,14 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
     status: statusBaru
   });
 
+  const paramsTransaksi = r
+    ? SHEET_URL
+      + '?action=simpanKeTransaksi'
+      + '&tanggal=' + encodeURIComponent(r.tanggal)
+      + '&nomor=' + encodeURIComponent(String(nomor).padStart(3, '0'))
+      + '&items=' + encodeURIComponent(JSON.stringify(r.items))
+    : null;
+  
   fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
     .then(() => {
       const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
@@ -226,6 +234,13 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
         riwayat[index].status = 'tersimpan';
         localStorage.setItem('riwayat', JSON.stringify(riwayat));
       }
+
+      // Kirim ke sheet Transaksi kalau ada datanya
+      if (paramsTransaksi) {
+        return fetch(paramsTransaksi, { mode: 'no-cors' });
+      }
+    })
+      .then(() => {
       loadRiwayat();
     })
     .catch(() => {
