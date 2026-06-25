@@ -184,7 +184,11 @@ function tambahPengeluaran() {
   const p = new URLSearchParams({action:'simpanPengeluaran',tanggal:new Date().toLocaleDateString('id-ID'),nama,kategori:KAT_LABEL[kategori],harga,jumlah,total,jam:new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),emoji:KAT_EMOJI[kategori]});
   fetch(`${SHEET_URL}?${p}`,{mode:'no-cors'});
 }
-
+function tick() {
+  const now = new Date();
+  document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
+  document.getElementById('jam-el').textContent = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }).replace(':', '.');}
+  
 function refreshPengeluaran() {
   const btn = document.getElementById('btn-sync-pengeluaran');
   btn.classList.add('spinning');
