@@ -208,7 +208,8 @@ function simpanKeSheet(index) {
   const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
 
   const url = SHEET_URL
-    + '?tanggal=' + encodeURIComponent(r.tanggal)
+    + '?action=simpanTransaksi'
+    + '&tanggal=' + encodeURIComponent(r.tanggal)
     + '&nomor=' + encodeURIComponent(nomorTransaksi)
     + '&items=' + encodeURIComponent(JSON.stringify(r.items));
 
