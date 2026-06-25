@@ -48,19 +48,18 @@
       <div class="kosong-state">Belum ada transaksi hari ini</div>
     </div>
 
-  </div><!-- end scroll-area -->
+  </div>
 
- <!-- TOMBOL SHEET -->
+  <!-- TOMBOL SHEET -->
   <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
       Buka Spreadsheet
   </a>
-  
+
   <!-- FOOTER NAV -->
   <div class="footer-nav">
- <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-  </a>
+    <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
+        Buka Spreadsheet
+    </a>
     <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
     <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
     <div class="nav-item" data-page="pengeluaran"><p>Pengeluaran</p></div>
@@ -106,15 +105,28 @@ function hitungStorage() {
   else el.classList.add('safe');
 }
 
-// ===== LOAD RIWAYAT =====
+// ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
   cekAutoResetRiwayat();
 
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  fetch(`${SHEET_URL}?action=getRiwayat`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok' && data.riwayat) {
+        renderRiwayatList(data.riwayat);
+      }
+    })
+    .catch(() => {
+      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+      renderRiwayatList(riwayat);
+    });
+}
+
+// ===== RENDER RIWAYAT LIST =====
+function renderRiwayatList(riwayat) {
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
-
   document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
@@ -130,13 +142,13 @@ function loadRiwayat() {
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
           </div>
           <div class="card-info">
-            <div class="card-title">Transaksi #${String(riwayat.length - i).padStart(3,'0')}</div>
+            <div class="card-title">Transaksi #${String(r.nomor).padStart(3,'0')}</div>
             <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
           </div>
         </div>
         <div class="card-header-right">
-          <span class="badge-status ${r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
-            ${r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
+          <span class="badge-status ${r.status === 'lunas' || r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
+            ${r.status === 'lunas' || r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
           </span>
           <div class="toggle-btn">
             <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
@@ -159,11 +171,11 @@ function loadRiwayat() {
               <div class="total-label">TOTAL</div>
               <div class="total-val">${fmt(r.total)}</div>
             </div>
-            ${r.status === 'tersimpan'
+            ${r.status === 'lunas' || r.status === 'tersimpan'
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
                   <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>
+                  <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
                 </div>`
             }
           </div>
@@ -195,36 +207,31 @@ function toggleCard(header) {
   }
 }
 
-// ===== SIMPAN KE SPREADSHEET =====
-function simpanKeSheet(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-
+// ===== UBAH STATUS TRANSAKSI =====
+function ubahStatusTransaksi(nomor, statusBaru, index) {
   const btn = document.querySelector(`#card-${index} .btn-bayar`);
-  btn.textContent = 'Memproses...';
-  btn.disabled = true;
+  if (btn) { btn.textContent = 'Memproses...'; btn.disabled = true; }
 
-  const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
-
-  const url = SHEET_URL
-    + '?action=simpanTransaksi'
-    + '&tanggal=' + encodeURIComponent(r.tanggal)
-    + '&nomor=' + encodeURIComponent(nomorTransaksi)
-    + '&items=' + encodeURIComponent(JSON.stringify(r.items));
-
-  fetch(url, { mode: 'no-cors' })
-  .then(() => {
-    riwayat[index].status = 'tersimpan';
-    localStorage.setItem('riwayat', JSON.stringify(riwayat));
-    tambahPemasukan(r.total);
-    loadRiwayat();
-  })
-  .catch(() => {
-    btn.textContent = 'Bayar';
-    btn.disabled = false;
-    alert('Gagal konek ke server!');
+  const params = new URLSearchParams({
+    action: 'updateStatusTransaksi',
+    nomor: nomor,
+    status: statusBaru
   });
+
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
+    .then(() => {
+      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+      if (riwayat[index]) {
+        tambahPemasukan(riwayat[index].total);
+        riwayat[index].status = 'tersimpan';
+        localStorage.setItem('riwayat', JSON.stringify(riwayat));
+      }
+      loadRiwayat();
+    })
+    .catch(() => {
+      if (btn) { btn.textContent = 'Bayar'; btn.disabled = false; }
+      alert('Gagal update status!');
+    });
 }
 
 // ===== RESET RIWAYAT =====
@@ -245,7 +252,6 @@ function saveProdukList(list) {
   localStorage.setItem('produk_list', JSON.stringify(list));
 }
 function ubahStokProduk(namaProduk, delta) {
-  // delta positif = tambah stok, negatif = kurangi stok
   const list = getProdukList();
   const p = list.find(x => x.nama.toLowerCase() === namaProduk.toLowerCase());
   if (p) {
@@ -257,14 +263,13 @@ function ubahStokProduk(namaProduk, delta) {
 
 // ===== EDIT TRANSAKSI =====
 let editIndex = -1;
-let itemsSebelumEdit = []; // snapshot qty sebelum edit untuk hitung selisih
+let itemsSebelumEdit = [];
 
 function bukaEdit(index) {
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const r = riwayat[index];
   if (!r) return;
   editIndex = index;
-  // Simpan snapshot item sebelum edit
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
@@ -303,7 +308,6 @@ function editQty(i, delta) {
 function hapusItemEdit(i) {
   const row = document.getElementById(`edit-row-${i}`);
   if (row) row.remove();
-  // reindex
   document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
     el.id = `edit-row-${idx}`;
     el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
@@ -328,23 +332,9 @@ function simpanEdit() {
 
   if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
 
-  // Hitung selisih stok per produk
-  // Buat map qty sebelum dan sesudah
-  const mapSebelum = {};
-  itemsSebelumEdit.forEach(x => {
-    mapSebelum[x.produk.toLowerCase()] = (mapSebelum[x.produk.toLowerCase()] || 0) + x.jumlah;
-  });
-  const mapBaru = {};
-  itemsBaru.forEach(x => {
-    mapBaru[x.produk.toLowerCase()] = { nama: x.produk, qty: (mapBaru[x.produk.toLowerCase()]?.qty || 0) + x.jumlah };
-  });
-
-  // Kembalikan stok untuk semua produk lama dulu
   itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
-  // Kurangi stok dengan qty baru
   itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
 
-  // Update riwayat
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
   riwayat[editIndex].items = itemsBaru;
@@ -361,7 +351,7 @@ function tutupModalEdit() {
   itemsSebelumEdit = [];
 }
 
-// ===== PILIH PRODUK (untuk tambah item di edit) =====
+// ===== PILIH PRODUK =====
 function bukaPilihProduk() {
   const produkList = getProdukList();
   const grid = document.getElementById('produk-picker-grid');
@@ -381,12 +371,10 @@ function pilihProduk(idx) {
   const p = produkList[idx];
   if (!p) return;
 
-  // Cek apakah produk ini sudah ada di edit items
   const rows = document.querySelectorAll('#edit-items .edit-item-row');
   let found = false;
   rows.forEach(row => {
     if (row.dataset.nama.toLowerCase() === p.nama.toLowerCase()) {
-      // Tambah qty yang sudah ada
       const qtyEl = row.querySelector('[id^="edit-qty-"]');
       qtyEl.textContent = parseInt(qtyEl.textContent) + 1;
       found = true;
@@ -394,7 +382,6 @@ function pilihProduk(idx) {
   });
 
   if (!found) {
-    // Tambah baris baru
     const container = document.getElementById('edit-items');
     const idx2 = container.querySelectorAll('.edit-item-row').length;
     const div = document.createElement('div');
