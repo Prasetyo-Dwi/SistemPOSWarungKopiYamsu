@@ -122,7 +122,6 @@
 
     <div class="list-header">
       <span id="info-jumlah">0 pengeluaran</span>
-      <button class="btn-reset-all" onclick="resetSemua()">Hapus Semua</button>
     </div>
     <div class="list-pengeluaran" id="list-pengeluaran"></div>
   </div>
@@ -164,12 +163,6 @@ function hapusDariSheet(item) {
   if (SHEET_URL) {
     fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
   }
-}
-
-function resetSemua() {
-  if (!confirm('Hapus semua data pengeluaran?')) return;
-  localStorage.removeItem('pengeluaran');
-  renderList();
 }
 
 function tambahPengeluaran() {
