@@ -171,18 +171,46 @@ function renderRiwayatList(riwayat) {
               <div class="total-label">TOTAL</div>
               <div class="total-val">${fmt(r.total)}</div>
             </div>
-            ${r.status === 'lunas' || r.status === 'tersimpan'
-              ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
-              : `<div style="display:flex;gap:8px;">
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
-                </div>`
-            }
+            <div style="display:flex;gap:8px;align-items:center;">
+              ${r.status === 'lunas' || r.status === 'tersimpan'
+                ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
+                : `<button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>`
+              }
+              <button class="btn-hapus-card" onclick="hapusTransaksi('${r.nomor}', ${i})">🗑️</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   `).join('');
+}
+
+// ===== HAPUS TRANSAKSI =====
+function hapusTransaksi(nomor, index) {
+  if (!confirm(`Yakin hapus Transaksi #${String(nomor).padStart(3,'0')}?`)) return;
+
+  const btn = document.querySelector(`#card-${index} .btn-hapus-card`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+
+  const params = new URLSearchParams({
+    action: 'hapusTransaksiRiwayat',
+    nomor: nomor
+  });
+
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
+    .then(() => {
+      // Hapus dari localStorage juga
+      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+      const indexLokal = riwayat.findIndex(r => String(r.nomor) === String(nomor));
+      if (indexLokal !== -1) riwayat.splice(indexLokal, 1);
+      localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+      loadRiwayat();
+    })
+    .catch(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '🗑️'; }
+      alert('Gagal hapus transaksi!');
+    });
 }
 
 // ===== TOGGLE CARD =====
