@@ -174,7 +174,8 @@ function renderRiwayatList(riwayat) {
             ${r.status === 'lunas' || r.status === 'tersimpan'
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
+                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}')">Hapus</button>
+                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">Edit</button>
                   <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
                 </div>`
             }
@@ -366,6 +367,21 @@ function bukaPilihProduk() {
   document.getElementById('modal-picker-overlay').classList.add('active');
 }
 
+async function hapusTransaksi(nomor) {
+  if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3,'0')}?`)) return;
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=hapusTransaksi&nomor=${nomor}`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      await loadRiwayat(); // ganti dengan nama function refresh riwayat yang kamu punya
+    } else {
+      alert('Gagal hapus: ' + data.message);
+    }
+  } catch(err) {
+    alert('Error: ' + err.message);
+  }
+}
+  
 function pilihProduk(idx) {
   const produkList = getProdukList();
   const p = produkList[idx];
