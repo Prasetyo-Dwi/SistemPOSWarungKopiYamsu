@@ -176,6 +176,7 @@ function renderRiwayatList(riwayat) {
                 ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
                 : `<button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>`
               }
+              <button class="btn-bayar" onclick="updateStatusTransaksi(${i})">Bayar</button>
               <button class="btn-hapus-card" onclick="hapusTransaksi('${r.nomor}', ${i})">🗑️</button>
             </div>
           </div>
