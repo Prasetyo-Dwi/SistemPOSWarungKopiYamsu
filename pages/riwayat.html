@@ -236,8 +236,14 @@ function toggleCard(header) {
   }
 }
 
-// ===== UBAH STATUS TRANSAKSI =====
-function ubahStatusTransaksi(nomor, statusBaru, index) {
+function simpanKeSheet(index) {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const r = riwayat[index]; // ← ambil r di sini dulu
+  if (!r) return;
+  ubahStatusTransaksi(r.nomor || (riwayat.length - index), 'tersimpan', index, r);
+}
+
+function ubahStatusTransaksi(nomor, statusBaru, index, r) { // ← tambah param r
   const btn = document.querySelector(`#card-${index} .btn-bayar`);
   if (btn) { btn.textContent = 'Memproses...'; btn.disabled = true; }
 
@@ -247,14 +253,14 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
     status: statusBaru
   });
 
-  const paramsTransaksi = r
+  const paramsTransaksi = r  // ← sekarang r sudah ada
     ? SHEET_URL
       + '?action=simpanKeTransaksi'
       + '&tanggal=' + encodeURIComponent(r.tanggal)
       + '&nomor=' + encodeURIComponent(String(nomor).padStart(3, '0'))
       + '&items=' + encodeURIComponent(JSON.stringify(r.items))
     : null;
-  
+
   fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
     .then(() => {
       const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
@@ -263,13 +269,11 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
         riwayat[index].status = 'tersimpan';
         localStorage.setItem('riwayat', JSON.stringify(riwayat));
       }
-
-      // Kirim ke sheet Transaksi kalau ada datanya
       if (paramsTransaksi) {
         return fetch(paramsTransaksi, { mode: 'no-cors' });
       }
     })
-      .then(() => {
+    .then(() => {
       loadRiwayat();
     })
     .catch(() => {
