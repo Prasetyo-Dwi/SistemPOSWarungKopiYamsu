@@ -40,30 +40,21 @@
 
   </div>
 
-  <!-- SCROLL AREA -->
-  <div class="scroll-area">
+  <!-- LIST -->
+  <div class="riwayat-list" id="riwayat-list">
+    <div class="kosong-state">Belum ada transaksi hari ini</div>
+  </div>
 
-    <!-- LIST -->
-    <div class="riwayat-list" id="riwayat-list">
-      <div class="kosong-state">Belum ada transaksi hari ini</div>
-    </div>
-
-  </div><!-- end scroll-area -->
-
- <!-- TOMBOL SHEET -->
+  <!-- TOMBOL SHEET -->
   <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
+    Buka Spreadsheet
   </a>
-  
+
   <!-- FOOTER NAV -->
   <div class="footer-nav">
- <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-  </a>
     <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
+    <div class="nav-item" data-page="produk"><p>Produk</p></div>
     <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
-    <div class="nav-item" data-page="pengeluaran"><p>Pengeluaran</p></div>
   </div>
 
 </div>
@@ -208,8 +199,7 @@ function simpanKeSheet(index) {
   const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
 
   const url = SHEET_URL
-    + '?action=simpanTransaksi'
-    + '&tanggal=' + encodeURIComponent(r.tanggal)
+    + '?tanggal=' + encodeURIComponent(r.tanggal)
     + '&nomor=' + encodeURIComponent(nomorTransaksi)
     + '&items=' + encodeURIComponent(JSON.stringify(r.items));
 
@@ -455,6 +445,6 @@ loadRiwayat();
   </div>
 </div>
 
-<script src="../function/Navigation.js"></script>
+<script src="../function/navigation.js"></script>
 </body>
 </html>
