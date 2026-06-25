@@ -97,15 +97,35 @@ function hitungStorage() {
   else el.classList.add('safe');
 }
 
-// ===== LOAD RIWAYAT =====
+// ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
   cekAutoResetRiwayat();
 
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  // Load dari Sheets
+  fetch(`${SHEET_URL}?action=getRiwayat`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok' && data.riwayat) {
+        renderRiwayatList(data.riwayat);
+      } else {
+        // Fallback ke localStorage jika Sheets kosong
+        const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+        renderRiwayatList(riwayat);
+      }
+    })
+    .catch(err => {
+      console.error('Load riwayat error:', err);
+      // Fallback ke localStorage
+      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+      renderRiwayatList(riwayat);
+    });
+}
+
+// ===== RENDER RIWAYAT LIST =====
+function renderRiwayatList(riwayat) {
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
-
   document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
@@ -113,55 +133,83 @@ function loadRiwayat() {
     return;
   }
 
-  list.innerHTML = riwayat.map((r, i) => `
-    <div class="riwayat-card" id="card-${i}">
-      <div class="card-header" onclick="toggleCard(this)">
-        <div class="card-header-left">
-          <div class="card-icon">
-            <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
-          </div>
-          <div class="card-info">
-            <div class="card-title">Transaksi #${String(riwayat.length - i).padStart(3,'0')}</div>
-            <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
-          </div>
-        </div>
-        <div class="card-header-right">
-          <span class="badge-status ${r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
-            ${r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
-          </span>
-          <div class="toggle-btn">
-            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-        </div>
-      </div>
-      <div class="card-body" style="max-height:0; overflow:hidden; transition: max-height 0.4s ease;">
-        <div class="card-body-inner">
-          <div class="item-list">
-            ${r.items.map(item => `
-              <div class="item-row">
-                <span>- ${item.produk}</span>
-                <span>${item.jumlah}x ${fmt(item.harga)}</span>
-              </div>
-            `).join('')}
-          </div>
-          <hr class="divider">
-          <div class="card-footer">
-            <div>
-              <div class="total-label">TOTAL</div>
-              <div class="total-val">${fmt(r.total)}</div>
+  list.innerHTML = riwayat.map((r, i) => {
+    const isLunas = r.status === 'lunas' || r.status === 'tersimpan';
+    return `
+      <div class="riwayat-card" id="card-${i}">
+        <div class="card-header" onclick="toggleCard(this)">
+          <div class="card-header-left">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
             </div>
-            ${r.status === 'tersimpan'
-              ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
-              : `<div style="display:flex;gap:8px;">
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>
-                </div>`
-            }
+            <div class="card-info">
+              <div class="card-title">Transaksi #${String(r.nomor).padStart(3,'0')}</div>
+              <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
+            </div>
+          </div>
+          <div class="card-header-right">
+            <span class="badge-status ${isLunas ? 'badge-lunas' : 'badge-belum'}">
+              ${isLunas ? 'Sudah dibayar' : 'Belum dibayar'}
+            </span>
+            <div class="toggle-btn">
+              <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style="max-height:0; overflow:hidden; transition: max-height 0.4s ease;">
+          <div class="card-body-inner">
+            <div class="item-list">
+              ${r.items.map(item => `
+                <div class="item-row">
+                  <span>- ${item.produk}</span>
+                  <span>${item.jumlah}x ${fmt(item.harga)}</span>
+                </div>
+              `).join('')}
+            </div>
+            <hr class="divider">
+            <div class="card-footer">
+              <div>
+                <div class="total-label">TOTAL</div>
+                <div class="total-val">${fmt(r.total)}</div>
+              </div>
+              ${isLunas
+                ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
+                : `<div style="display:flex;gap:8px;">
+                    <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
+                    <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas')">Bayar</button>
+                  </div>`
+              }
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+}
+
+// ===== UBAH STATUS TRANSAKSI =====
+function ubahStatusTransaksi(nomor, statusBaru) {
+  if (confirm('Tandai transaksi #' + nomor + ' sebagai sudah dibayar?')) {
+    const params = new URLSearchParams({
+      action: 'updateStatusTransaksi',
+      nomor: nomor,
+      status: statusBaru
+    });
+    
+    fetch(`${SHEET_URL}?${params}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'ok') {
+          loadRiwayat(); // reload
+        } else {
+          alert('Gagal update status: ' + data.message);
+        }
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        alert('Gagal update status!');
+      });
+  }
 }
 
 // ===== TOGGLE CARD =====
@@ -184,37 +232,6 @@ function toggleCard(header) {
       body.style.maxHeight = 'none';
     }, { once: true });
   }
-}
-
-// ===== SIMPAN KE SPREADSHEET =====
-function simpanKeSheet(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-
-  const btn = document.querySelector(`#card-${index} .btn-bayar`);
-  btn.textContent = 'Memproses...';
-  btn.disabled = true;
-
-  const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
-
-  const url = SHEET_URL
-    + '?tanggal=' + encodeURIComponent(r.tanggal)
-    + '&nomor=' + encodeURIComponent(nomorTransaksi)
-    + '&items=' + encodeURIComponent(JSON.stringify(r.items));
-
-  fetch(url, { mode: 'no-cors' })
-  .then(() => {
-    riwayat[index].status = 'tersimpan';
-    localStorage.setItem('riwayat', JSON.stringify(riwayat));
-    tambahPemasukan(r.total);
-    loadRiwayat();
-  })
-  .catch(() => {
-    btn.textContent = 'Bayar';
-    btn.disabled = false;
-    alert('Gagal konek ke server!');
-  });
 }
 
 // ===== RESET RIWAYAT =====
@@ -250,6 +267,7 @@ let editIndex = -1;
 let itemsSebelumEdit = []; // snapshot qty sebelum edit untuk hitung selisih
 
 function bukaEdit(index) {
+  // Load dari localStorage dulu untuk edit lokal
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const r = riwayat[index];
   if (!r) return;
