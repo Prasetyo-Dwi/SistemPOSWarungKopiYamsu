@@ -110,8 +110,8 @@ body {
 /* RINCIAN */
 .rincian {
   flex-shrink: 0;
-  margin: 0 auto;
-  padding: 16px 0;
+  margin: 20px 16px 0; 
+  padding: 0;  
   width: calc(100% - 32px);
   background: white;
   border-radius: 20px;
