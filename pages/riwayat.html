@@ -325,20 +325,15 @@ async function simpanEdit() {
   if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
 
   try {
-    // POST supaya payload items/itemsLama tidak kena batas panjang URL (GET ~2000 char)
-    const payload = JSON.stringify({
+    const params = new URLSearchParams({
       action:    'editTransaksi',
       nomor:     r.nomor,
       tanggal:   r.tanggal,
-      items:     itemsBaru,
-      itemsLama: itemsSebelumEdit
+      items:     JSON.stringify(itemsBaru),
+      itemsLama: JSON.stringify(itemsSebelumEdit)
     });
 
-    const res  = await fetch(SHEET_URL, {
-      method:  'POST',
-      headers: { 'Content-Type': 'text/plain' }, // Apps Script perlu text/plain agar tidak preflight CORS
-      body:    payload
-    });
+    const res  = await fetch(`${SHEET_URL}?${params}`);
     const data = await res.json();
 
     if (data.status !== 'ok') {
