@@ -325,15 +325,20 @@ async function simpanEdit() {
   if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
 
   try {
-    const params = new URLSearchParams({
+    // POST supaya payload items/itemsLama tidak kena batas panjang URL (GET ~2000 char)
+    const payload = JSON.stringify({
       action:    'editTransaksi',
       nomor:     r.nomor,
-      tanggal:   r.tanggal,       // dd/mm/yyyy — dipakai Apps Script untuk filter baris
-      items:     JSON.stringify(itemsBaru),
-      itemsLama: JSON.stringify(itemsSebelumEdit)
+      tanggal:   r.tanggal,
+      items:     itemsBaru,
+      itemsLama: itemsSebelumEdit
     });
 
-    const res  = await fetch(`${SHEET_URL}?${params}`);
+    const res  = await fetch(SHEET_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' }, // Apps Script perlu text/plain agar tidak preflight CORS
+      body:    payload
+    });
     const data = await res.json();
 
     if (data.status !== 'ok') {
@@ -362,6 +367,9 @@ function tutupModalEdit() {
   document.getElementById('modal-edit-overlay').classList.remove('active');
   editIndex        = -1;
   itemsSebelumEdit = [];
+  // Reset tombol simpan supaya tidak kelock saat modal dibuka lagi
+  const btnSimpan = document.querySelector('.btn-modal-save');
+  if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
 }
 
 // ===== BUKA PILIH PRODUK =====
