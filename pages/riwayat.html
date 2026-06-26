@@ -50,11 +50,6 @@
 
   </div>
 
-  <!-- TOMBOL SHEET -->
-  <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-  </a>
-
   <!-- FOOTER NAV -->
   <div class="footer-nav">
     <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
@@ -72,11 +67,18 @@
 
 <script>
 
+// ===== STATE GLOBAL =====
+// Menyimpan data riwayat dari Sheets agar bukaEdit() & simpanEdit()
+// tidak perlu baca localStorage (yang mungkin stale / tidak ter-update)
+let riwayatGlobal = [];
+let editIndex     = -1;
+let itemsSebelumEdit = [];
+
 // ===== CLOCK =====
 function tick() {
   const now = new Date();
   document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
-    weekday:'short', day:'numeric', month:'long', year:'numeric'
+    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric'
   });
 }
 tick();
@@ -90,7 +92,7 @@ function hitungStorage() {
     }
   }
   const usedKB = total / 1024;
-  const max = 5120;
+  const max    = 5120;
   const persen = ((usedKB / max) * 100).toFixed(1);
   const usedText = usedKB < 1024
     ? usedKB.toFixed(1) + ' KB'
@@ -98,16 +100,14 @@ function hitungStorage() {
 
   const el = document.getElementById('storage-info');
   el.textContent = usedText + ' / 5 MB (' + persen + '%)';
-
   el.classList.remove('safe', 'warn', 'danger');
-  if (persen >= 80) el.classList.add('danger');
+  if      (persen >= 80) el.classList.add('danger');
   else if (persen >= 60) el.classList.add('warn');
-  else el.classList.add('safe');
+  else                   el.classList.add('safe');
 }
 
 // ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
-
   fetch(`${SHEET_URL}?action=getRiwayat`)
     .then(res => res.json())
     .then(data => {
@@ -116,6 +116,7 @@ function loadRiwayat() {
       }
     })
     .catch(() => {
+      // Fallback ke localStorage kalau offline
       const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
       renderRiwayatList(riwayat);
     });
@@ -123,6 +124,12 @@ function loadRiwayat() {
 
 // ===== RENDER RIWAYAT LIST =====
 function renderRiwayatList(riwayat) {
+  // Simpan ke state global — ini kunci fix bug edit
+  riwayatGlobal = riwayat;
+
+  // Juga sync ke localStorage sebagai cache offline
+  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
@@ -141,7 +148,7 @@ function renderRiwayatList(riwayat) {
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
           </div>
           <div class="card-info">
-            <div class="card-title">Transaksi #${String(r.nomor).padStart(3,'0')}</div>
+            <div class="card-title">Transaksi #${String(r.nomor).padStart(3, '0')}</div>
             <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
           </div>
         </div>
@@ -174,8 +181,8 @@ function renderRiwayatList(riwayat) {
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
                   <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', this)">Hapus</button>
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">Edit</button>
-                  <button class="btn-bayar" onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
+                  <button class="btn-edit-trx"  onclick="bukaEdit(${i})">Edit</button>
+                  <button class="btn-bayar"      onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
                 </div>`
             }
           </div>
@@ -193,9 +200,7 @@ function toggleCard(header) {
   if (card.classList.contains('open')) {
     body.style.maxHeight = body.scrollHeight + 'px';
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        body.style.maxHeight = '0';
-      });
+      requestAnimationFrame(() => { body.style.maxHeight = '0'; });
     });
     card.classList.remove('open');
   } else {
@@ -214,17 +219,16 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
 
   const params = new URLSearchParams({
     action: 'updateStatusTransaksi',
-    nomor: nomor,
+    nomor:  nomor,
     status: statusBaru
   });
 
   fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
     .then(() => {
-      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-      if (riwayat[index]) {
-        tambahPemasukan(riwayat[index].total);
-        riwayat[index].status = 'tersimpan';
-        localStorage.setItem('riwayat', JSON.stringify(riwayat));
+      if (riwayatGlobal[index]) {
+        tambahPemasukan(riwayatGlobal[index].total);
+        riwayatGlobal[index].status = 'tersimpan';
+        localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
       }
       loadRiwayat();
     })
@@ -233,7 +237,6 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
       alert('Gagal update status!');
     });
 }
-
 
 // ===== HELPER STOK =====
 function getProdukList() {
@@ -252,21 +255,23 @@ function ubahStokProduk(namaProduk, delta) {
   }
 }
 
-// ===== EDIT TRANSAKSI =====
-let editIndex = -1;
-let itemsSebelumEdit = [];
-
+// ===== BUKA EDIT =====
 function bukaEdit(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-  editIndex = index;
+  // Ambil dari riwayatGlobal, bukan localStorage
+  const r = riwayatGlobal[index];
+  if (!r) {
+    alert('Data transaksi tidak ditemukan.');
+    return;
+  }
+
+  editIndex        = index;
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
   document.getElementById('modal-edit-overlay').classList.add('active');
 }
 
+// ===== RENDER MODAL EDIT =====
 function renderModalEdit(items) {
   document.getElementById('modal-edit-body').innerHTML = `
     <div id="edit-items">
@@ -289,16 +294,19 @@ function renderModalEdit(items) {
   `;
 }
 
+// ===== EDIT QTY =====
 function editQty(i, delta) {
   const span = document.getElementById(`edit-qty-${i}`);
-  const cur = parseInt(span.textContent) || 1;
-  const baru = Math.max(1, cur + delta);
-  span.textContent = baru;
+  const cur  = parseInt(span.textContent) || 1;
+  span.textContent = Math.max(1, cur + delta);
 }
 
+// ===== HAPUS ITEM DI MODAL EDIT =====
 function hapusItemEdit(i) {
   const row = document.getElementById(`edit-row-${i}`);
   if (row) row.remove();
+
+  // Re-index semua row setelah hapus
   document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
     el.id = `edit-row-${idx}`;
     el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
@@ -309,10 +317,12 @@ function hapusItemEdit(i) {
   });
 }
 
+// ===== SIMPAN EDIT =====
 async function simpanEdit() {
   if (editIndex === -1) return;
 
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
+  // Kumpulkan item dari modal
+  const rows     = document.querySelectorAll('#edit-items .edit-item-row');
   const itemsBaru = [];
   rows.forEach(row => {
     const produk = row.dataset.nama;
@@ -323,23 +333,23 @@ async function simpanEdit() {
 
   if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
 
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[editIndex];
-  if (!r) return;
+  // Ambil transaksi dari state global (bukan localStorage)
+  const r = riwayatGlobal[editIndex];
+  if (!r) { alert('Data transaksi tidak ditemukan.'); return; }
 
   const btnSimpan = document.querySelector('.btn-modal-save');
   if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
 
   try {
     const params = new URLSearchParams({
-      action: 'editTransaksi',
-      nomor: r.nomor,
-      tanggal: r.tanggal,
-      items: JSON.stringify(itemsBaru),
-      itemsLama: JSON.stringify(itemsSebelumEdit)
+      action:     'editTransaksi',
+      nomor:      r.nomor,
+      tanggal:    r.tanggal,
+      items:      JSON.stringify(itemsBaru),
+      itemsLama:  JSON.stringify(itemsSebelumEdit)
     });
 
-    const res = await fetch(`${SHEET_URL}?${params}`);
+    const res  = await fetch(`${SHEET_URL}?${params}`);
     const data = await res.json();
 
     if (data.status !== 'ok') {
@@ -348,31 +358,33 @@ async function simpanEdit() {
       return;
     }
 
-    // Update localStorage
-    itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
-    itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
+    // Update stok: kembalikan stok lama, kurangi stok baru
+    itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk,  x.jumlah));
+    itemsBaru.forEach(x        => ubahStokProduk(x.produk, -x.jumlah));
 
+    // Update state global & localStorage
     const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
-    riwayat[editIndex].items = itemsBaru;
-    riwayat[editIndex].total = total;
-    localStorage.setItem('riwayat', JSON.stringify(riwayat));
+    riwayatGlobal[editIndex].items = itemsBaru;
+    riwayatGlobal[editIndex].total = total;
+    localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
 
     tutupModalEdit();
     loadRiwayat();
 
-  } catch(err) {
+  } catch (err) {
     alert('Error: ' + err.message);
     if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
   }
 }
 
+// ===== TUTUP MODAL EDIT =====
 function tutupModalEdit() {
   document.getElementById('modal-edit-overlay').classList.remove('active');
-  editIndex = -1;
+  editIndex        = -1;
   itemsSebelumEdit = [];
 }
 
-// ===== PILIH PRODUK =====
+// ===== BUKA PILIH PRODUK =====
 function bukaPilihProduk() {
   const produkList = getProdukList();
   const grid = document.getElementById('produk-picker-grid');
@@ -387,31 +399,15 @@ function bukaPilihProduk() {
   document.getElementById('modal-picker-overlay').classList.add('active');
 }
 
-async function hapusTransaksi(nomor, btn) {
-  if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3,'0')}?`)) return;
-  if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
-  try {
-    const res = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
-    const data = await res.json();
-    if (data.status === 'ok') {
-      loadRiwayat();
-    } else {
-      alert('Gagal hapus: ' + data.message);
-      if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
-    }
-  } catch(err) {
-    alert('Error: ' + err.message);
-    if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
-  }
-}
-  
+// ===== PILIH PRODUK DARI PICKER =====
 function pilihProduk(idx) {
   const produkList = getProdukList();
   const p = produkList[idx];
   if (!p) return;
 
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
-  let found = false;
+  // Kalau produk sudah ada di daftar edit, tambah qty-nya
+  const rows  = document.querySelectorAll('#edit-items .edit-item-row');
+  let found   = false;
   rows.forEach(row => {
     if (row.dataset.nama.toLowerCase() === p.nama.toLowerCase()) {
       const qtyEl = row.querySelector('[id^="edit-qty-"]');
@@ -420,13 +416,14 @@ function pilihProduk(idx) {
     }
   });
 
+  // Kalau belum ada, tambah row baru
   if (!found) {
     const container = document.getElementById('edit-items');
-    const idx2 = container.querySelectorAll('.edit-item-row').length;
-    const div = document.createElement('div');
-    div.className = 'edit-item-row';
-    div.id = `edit-row-${idx2}`;
-    div.dataset.nama = p.nama;
+    const newIdx    = container.querySelectorAll('.edit-item-row').length;
+    const div       = document.createElement('div');
+    div.className   = 'edit-item-row';
+    div.id          = `edit-row-${newIdx}`;
+    div.dataset.nama  = p.nama;
     div.dataset.harga = p.harga;
     div.innerHTML = `
       <div class="edit-item-info">
@@ -434,10 +431,10 @@ function pilihProduk(idx) {
         <span class="edit-item-harga">${fmt(p.harga)}</span>
       </div>
       <div class="edit-qty-control">
-        <button onclick="editQty(${idx2}, -1)">−</button>
-        <span id="edit-qty-${idx2}">1</span>
-        <button onclick="editQty(${idx2}, 1)">+</button>
-        <button class="btn-hapus-row" onclick="hapusItemEdit(${idx2})">🗑️</button>
+        <button onclick="editQty(${newIdx}, -1)">−</button>
+        <span id="edit-qty-${newIdx}">1</span>
+        <button onclick="editQty(${newIdx}, 1)">+</button>
+        <button class="btn-hapus-row" onclick="hapusItemEdit(${newIdx})">🗑️</button>
       </div>
     `;
     container.appendChild(div);
@@ -446,11 +443,35 @@ function pilihProduk(idx) {
   tutupPicker();
 }
 
+// ===== HAPUS TRANSAKSI =====
+async function hapusTransaksi(nomor, btn) {
+  if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3, '0')}?`)) return;
+  if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
+
+  try {
+    const res  = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      loadRiwayat();
+    } else {
+      alert('Gagal hapus: ' + data.message);
+      if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+    if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
+  }
+}
+
+// ===== TUTUP PICKER =====
 function tutupPicker() {
   document.getElementById('modal-picker-overlay').classList.remove('active');
 }
 
+// ===== INIT =====
 loadRiwayat();
+
 </script>
 
 <!-- MODAL EDIT TRANSAKSI -->
@@ -463,7 +484,7 @@ loadRiwayat();
     <div class="modal-body" id="modal-edit-body"></div>
     <div class="modal-footer">
       <button class="btn-modal-cancel" onclick="tutupModalEdit()">Batal</button>
-      <button class="btn-modal-save" onclick="simpanEdit()">Simpan</button>
+      <button class="btn-modal-save"   onclick="simpanEdit()">Simpan</button>
     </div>
   </div>
 </div>
