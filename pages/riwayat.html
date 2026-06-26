@@ -68,10 +68,8 @@
 <script>
 
 // ===== STATE GLOBAL =====
-// Menyimpan data riwayat dari Sheets agar bukaEdit() & simpanEdit()
-// tidak perlu baca localStorage (yang mungkin stale / tidak ter-update)
-let riwayatGlobal = [];
-let editIndex     = -1;
+let riwayatGlobal    = [];
+let editIndex        = -1;
 let itemsSebelumEdit = [];
 
 // ===== CLOCK =====
@@ -116,7 +114,6 @@ function loadRiwayat() {
       }
     })
     .catch(() => {
-      // Fallback ke localStorage kalau offline
       const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
       renderRiwayatList(riwayat);
     });
@@ -124,10 +121,7 @@ function loadRiwayat() {
 
 // ===== RENDER RIWAYAT LIST =====
 function renderRiwayatList(riwayat) {
-  // Simpan ke state global — ini kunci fix bug edit
   riwayatGlobal = riwayat;
-
-  // Juga sync ke localStorage sebagai cache offline
   localStorage.setItem('riwayat', JSON.stringify(riwayat));
 
   const list = document.getElementById('riwayat-list');
@@ -180,7 +174,7 @@ function renderRiwayatList(riwayat) {
             ${r.status === 'lunas' || r.status === 'tersimpan'
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
-                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', this)">Hapus</button>
+                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', '${r.tanggal}', this)">Hapus</button>
                   <button class="btn-edit-trx"  onclick="bukaEdit(${i})">Edit</button>
                   <button class="btn-bayar"      onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar</button>
                 </div>`
@@ -238,26 +232,13 @@ function ubahStatusTransaksi(nomor, statusBaru, index) {
     });
 }
 
-// ===== HELPER STOK =====
+// ===== HELPER PRODUK (untuk picker) =====
 function getProdukList() {
   return JSON.parse(localStorage.getItem('produk_list') || '[]');
-}
-function saveProdukList(list) {
-  localStorage.setItem('produk_list', JSON.stringify(list));
-}
-function ubahStokProduk(namaProduk, delta) {
-  const list = getProdukList();
-  const p = list.find(x => x.nama.toLowerCase() === namaProduk.toLowerCase());
-  if (p) {
-    p.stok = Math.max(0, p.stok + delta);
-    saveProdukList(list);
-    syncStokKeSheet();
-  }
 }
 
 // ===== BUKA EDIT =====
 function bukaEdit(index) {
-  // Ambil dari riwayatGlobal, bukan localStorage
   const r = riwayatGlobal[index];
   if (!r) {
     alert('Data transaksi tidak ditemukan.');
@@ -302,27 +283,31 @@ function editQty(i, delta) {
 }
 
 // ===== HAPUS ITEM DI MODAL EDIT =====
+// FIX: pakai fungsi reindexEditRows() setelah hapus agar tidak rawan bug
 function hapusItemEdit(i) {
   const row = document.getElementById(`edit-row-${i}`);
   if (row) row.remove();
+  reindexEditRows();
+}
 
-  // Re-index semua row setelah hapus
+function reindexEditRows() {
   document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
     el.id = `edit-row-${idx}`;
-    el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
-    el.querySelector('[id^="edit-qty-"]').id = `edit-qty-${idx}`;
-    const qtyBtns = el.querySelectorAll('.edit-qty-control button');
-    qtyBtns[0].setAttribute('onclick', `editQty(${idx}, -1)`);
-    qtyBtns[1].setAttribute('onclick', `editQty(${idx}, 1)`);
+    const qtySpan = el.querySelector('[id^="edit-qty-"]');
+    if (qtySpan) qtySpan.id = `edit-qty-${idx}`;
+    const btns = el.querySelectorAll('.edit-qty-control button');
+    if (btns[0]) btns[0].setAttribute('onclick', `editQty(${idx}, -1)`);
+    if (btns[1]) btns[1].setAttribute('onclick', `editQty(${idx}, 1)`);
+    if (btns[2]) btns[2].setAttribute('onclick', `hapusItemEdit(${idx})`);
   });
 }
 
 // ===== SIMPAN EDIT =====
+// FIX: hapus ubahStokProduk() & syncStokKeSheet() — stok di-handle sepenuhnya oleh Apps Script
 async function simpanEdit() {
   if (editIndex === -1) return;
 
-  // Kumpulkan item dari modal
-  const rows     = document.querySelectorAll('#edit-items .edit-item-row');
+  const rows      = document.querySelectorAll('#edit-items .edit-item-row');
   const itemsBaru = [];
   rows.forEach(row => {
     const produk = row.dataset.nama;
@@ -333,7 +318,6 @@ async function simpanEdit() {
 
   if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
 
-  // Ambil transaksi dari state global (bukan localStorage)
   const r = riwayatGlobal[editIndex];
   if (!r) { alert('Data transaksi tidak ditemukan.'); return; }
 
@@ -342,11 +326,11 @@ async function simpanEdit() {
 
   try {
     const params = new URLSearchParams({
-      action:     'editTransaksi',
-      nomor:      r.nomor,
-      tanggal:    r.tanggal,
-      items:      JSON.stringify(itemsBaru),
-      itemsLama:  JSON.stringify(itemsSebelumEdit)
+      action:    'editTransaksi',
+      nomor:     r.nomor,
+      tanggal:   r.tanggal,       // dd/mm/yyyy — dipakai Apps Script untuk filter baris
+      items:     JSON.stringify(itemsBaru),
+      itemsLama: JSON.stringify(itemsSebelumEdit)
     });
 
     const res  = await fetch(`${SHEET_URL}?${params}`);
@@ -358,11 +342,7 @@ async function simpanEdit() {
       return;
     }
 
-    // Update stok: kembalikan stok lama, kurangi stok baru
-    itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk,  x.jumlah));
-    itemsBaru.forEach(x        => ubahStokProduk(x.produk, -x.jumlah));
-
-    // Update state global & localStorage
+    // Update state global & localStorage (stok sudah di-handle Apps Script)
     const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
     riwayatGlobal[editIndex].items = itemsBaru;
     riwayatGlobal[editIndex].total = total;
@@ -405,7 +385,6 @@ function pilihProduk(idx) {
   const p = produkList[idx];
   if (!p) return;
 
-  // Kalau produk sudah ada di daftar edit, tambah qty-nya
   const rows  = document.querySelectorAll('#edit-items .edit-item-row');
   let found   = false;
   rows.forEach(row => {
@@ -416,7 +395,6 @@ function pilihProduk(idx) {
     }
   });
 
-  // Kalau belum ada, tambah row baru
   if (!found) {
     const container = document.getElementById('edit-items');
     const newIdx    = container.querySelectorAll('.edit-item-row').length;
@@ -444,12 +422,13 @@ function pilihProduk(idx) {
 }
 
 // ===== HAPUS TRANSAKSI =====
-async function hapusTransaksi(nomor, btn) {
+// FIX: kirim tanggal ke Apps Script agar filter nomor + tanggal (bukan nomor doang)
+async function hapusTransaksi(nomor, tanggal, btn) {
   if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3, '0')}?`)) return;
   if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
 
   try {
-    const res  = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
+    const res  = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}&tanggal=${encodeURIComponent(tanggal)}`);
     const data = await res.json();
 
     if (data.status === 'ok') {
