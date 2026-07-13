@@ -378,19 +378,6 @@ function simpanEdit() {
   // Kurangi stok dengan qty baru
   itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
 
-  // Pertahankan status ceklis (dibayarUnit) per produk yang masih ada
-  const riwayatLama = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const itemsLamaFull = riwayatLama[editIndex] ? riwayatLama[editIndex].items : [];
-  itemsBaru.forEach(itemBaru => {
-    const lama = itemsLamaFull.find(x => x.produk.toLowerCase() === itemBaru.produk.toLowerCase());
-    const dibayarLama = (lama && Array.isArray(lama.dibayarUnit)) ? lama.dibayarUnit : [];
-    const dibayarBaru = [];
-    for (let u = 0; u < itemBaru.jumlah; u++) {
-      dibayarBaru.push(!!dibayarLama[u]);
-    }
-    itemBaru.dibayarUnit = dibayarBaru;
-  });
-
   // Update riwayat
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
