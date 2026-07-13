@@ -142,12 +142,7 @@ function loadRiwayat() {
       <div class="card-body" style="max-height:0; overflow:hidden; transition: max-height 0.4s ease;">
         <div class="card-body-inner">
           <div class="item-list">
-            ${r.items.map(item => `
-              <div class="item-row">
-                <span>- ${item.produk}</span>
-                <span>${item.jumlah}x ${fmt(item.harga)}</span>
-              </div>
-            `).join('')}
+            ${r.items.map((item, itemIdx) => renderUnitRows(item, itemIdx, i, r.status)).join('')}
           </div>
           <hr class="divider">
           <div class="card-footer">
@@ -159,7 +154,7 @@ function loadRiwayat() {
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
                   <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar</button>
+                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar Semua</button>
                 </div>`
             }
           </div>
@@ -192,6 +187,50 @@ function toggleCard(header) {
 }
 
 // ===== SIMPAN KE SPREADSHEET =====
+function renderUnitRows(item, itemIdx, riwayatIdx, statusTransaksi) {
+  const jumlah = item.jumlah || 1;
+  const hargaSatuan = item.harga / jumlah;
+  if (!item.dibayarUnit || item.dibayarUnit.length !== jumlah) {
+    item.dibayarUnit = new Array(jumlah).fill(false);
+  }
+  let html = '';
+  for (let u = 0; u < jumlah; u++) {
+    const lunas = statusTransaksi === 'tersimpan' || !!item.dibayarUnit[u];
+    const clickable = statusTransaksi !== 'tersimpan';
+    html += `
+      <div class="item-row ${lunas ? 'item-lunas' : ''}">
+        <span>- ${item.produk}</span>
+        <div class="item-row-right">
+          <span class="item-harga">${fmt(hargaSatuan)}</span>
+          <span class="item-check ${lunas ? 'checked' : ''} ${clickable ? '' : 'nochange'}"
+                ${clickable ? `onclick="toggleUnitBayar(${riwayatIdx}, ${itemIdx}, ${u}, this)"` : ''}>
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        </div>
+      </div>`;
+  }
+  return html;
+}
+
+function toggleUnitBayar(riwayatIdx, itemIdx, unitIdx, el) {
+  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const r = riwayat[riwayatIdx];
+  if (!r) return;
+  const item = r.items[itemIdx];
+  if (!item) return;
+  const jumlah = item.jumlah || 1;
+  if (!item.dibayarUnit || item.dibayarUnit.length !== jumlah) {
+    item.dibayarUnit = new Array(jumlah).fill(false);
+  }
+  item.dibayarUnit[unitIdx] = !item.dibayarUnit[unitIdx];
+  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+  const checked = item.dibayarUnit[unitIdx];
+  const row = el.closest('.item-row');
+  row.classList.toggle('item-lunas', checked);
+  el.classList.toggle('checked', checked);
+}
+
 function simpanKeSheet(index) {
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
   const r = riwayat[index];
@@ -338,6 +377,19 @@ function simpanEdit() {
   itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
   // Kurangi stok dengan qty baru
   itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
+
+  // Pertahankan status ceklis (dibayarUnit) per produk yang masih ada
+  const riwayatLama = JSON.parse(localStorage.getItem('riwayat') || '[]');
+  const itemsLamaFull = riwayatLama[editIndex] ? riwayatLama[editIndex].items : [];
+  itemsBaru.forEach(itemBaru => {
+    const lama = itemsLamaFull.find(x => x.produk.toLowerCase() === itemBaru.produk.toLowerCase());
+    const dibayarLama = (lama && Array.isArray(lama.dibayarUnit)) ? lama.dibayarUnit : [];
+    const dibayarBaru = [];
+    for (let u = 0; u < itemBaru.jumlah; u++) {
+      dibayarBaru.push(!!dibayarLama[u]);
+    }
+    itemBaru.dibayarUnit = dibayarBaru;
+  });
 
   // Update riwayat
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
