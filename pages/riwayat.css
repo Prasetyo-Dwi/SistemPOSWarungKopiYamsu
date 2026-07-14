@@ -686,6 +686,15 @@ body {
 }
 .btn-edit-trx:hover { background: #dde5ff; }
 
+/* ── TOMBOL HAPUS TRANSAKSI DI CARD ── */
+.btn-hapus-trx {
+  background: #fee2e2; border: 1.5px solid #fecaca;
+  border-radius: var(--radius-sm, 16px); padding: 10px 14px;
+  font-size: 13px; font-weight: 600; color: #ef4444;
+  cursor: pointer; font-family: inherit; transition: background 0.2s;
+}
+.btn-hapus-trx:hover { background: #fecaca; }
+
 /* ── PRODUK PICKER GRID ── */
 .produk-picker-grid {
   display: grid;
