@@ -35,6 +35,7 @@
 
   <!-- PRODUK -->
   <div class="produk-container" id="produk-container"></div>
+  </div>
 
   <!-- RINCIAN -->
   <div class="rincian">
@@ -57,7 +58,6 @@
       <button onclick="bayar()">Simpan</button>
     </div>
   </div>
-</div>
 
 <!-- FOOTER NAVIGATION -->
 <div class="footer-nav">
@@ -72,35 +72,34 @@ if (!sessionStorage.getItem('pos_role')) {
 }
 </script>
 
+<!---note dwi: atas buat langsung otomatis ke login-->
+
 <!-- utils.js duluan sebelum script utama -->
 <script src="function/utils.js?v=1"></script>
 <script>authGuard();</script>
-
 <script>
-// ==========================================
-// 1. DEKLARASI VARIABEL GLOBAL
-// ==========================================
-// Ambil data dari localStorage langsung agar UI tidak menunggu internet
+// Load produk dari Sheets dulu, baru baca dari localStorage
+loadProdukDariSheet(() => {
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+
+if (produkList.length === 0) {
+  alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
+}
+
 let cart = {};
 let curCat = 'semua';
 
-// ==========================================
-// 2. JAM & TANGGAL HEADER (Jalan Instan)
-// ==========================================
+// ===== CLOCK =====
 function tick() {
   const now = new Date();
   document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
   document.getElementById('jam-el').textContent = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }).replace(':', '.');
 }
-tick(); // Panggil sekali langsung jalan
-setInterval(tick, 1000); // Ulangi setiap detik
-
+tick();
+setInterval(tick, 1000);
 document.getElementById('role-badge').textContent = (getRole() === 'kasir' ? '🧑‍💼 Kasir' : '👑 Owner');
 
-// ==========================================
-// 3. FUNGSI LOGIKA POS
-// ==========================================
+// ===== RENDER PRODUK =====
 function renderProduk() {
   const list = curCat === 'semua' ? produkList : produkList.filter(p => p.cat === curCat);
   document.getElementById('produk-container').innerHTML = list.map(p => {
@@ -117,6 +116,7 @@ function renderProduk() {
   }).join('');
 }
 
+// ===== CART =====
 function addToCart(id) {
   const p = produkList.find(x => x.id == id);
   if (!p) return;
@@ -144,6 +144,7 @@ function clearCart() {
   renderRincian();
 }
 
+// ===== RENDER RINCIAN =====
 function renderRincian() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   let totalItem = 0, total = 0;
@@ -173,6 +174,14 @@ function renderRincian() {
   }).join('');
 }
 
+// ===== SIMPAN =====
+function generateNomorTransaksi() {
+  let n = parseInt(localStorage.getItem('nomorTransaksi') || '0');
+  n += 1;
+  localStorage.setItem('nomorTransaksi', String(n));
+  return String(n).padStart(3, '0');
+}
+
 function bayar() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   if (!ids.length) { alert('Keranjang masih kosong!'); return; }
@@ -187,16 +196,29 @@ function bayar() {
   const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' })
     + ' ' + now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 
+  // PENTING: harga di sini harga SATUAN (per unit), bukan dikali jumlah.
+  // Sheet/Apps Script yang menghitung total = harga * jumlah sendiri.
   const items = ids.map(k => {
     const p = produkList.find(x => x.id == k);
-    return { produk: p.nama, jumlah: cart[k], harga: p.harga * cart[k] };
+    return { produk: p.nama, jumlah: cart[k], harga: p.harga };
   });
 
-  const total = items.reduce((s, i) => s + i.harga, 0);
+  const total = items.reduce((s, i) => s + i.harga * i.jumlah, 0);
+  const nomor = generateNomorTransaksi();
 
+  // Simpan lokal dulu sebagai cache offline (langsung tampil walau belum online)
   const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  riwayat.unshift({ tanggal, items, total, status: 'belum' });
+  riwayat.unshift({ tanggal, nomor, items, total, status: 'belum' });
   localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+  // Kirim transaksi ke Google Sheets supaya langsung muncul di halaman Riwayat
+  const params = new URLSearchParams({
+    action:  'simpanTransaksi',
+    tanggal: tanggal,
+    nomor:   nomor,
+    items:   JSON.stringify(items)
+  });
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
 
   syncStokKeSheet(); // dari utils.js
 
@@ -204,7 +226,7 @@ function bayar() {
   alert('Transaksi berhasil disimpan!');
 }
 
-// EVENT LISTENER KATEGORI
+// ===== KATEGORI =====
 document.querySelector('.kategori').addEventListener('click', e => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -214,26 +236,9 @@ document.querySelector('.kategori').addEventListener('click', e => {
   renderProduk();
 });
 
-// ==========================================
-// 4. INIT: RENDER DULUAN LALU UPDATE BACKGROUND
-// ==========================================
-if (produkList.length > 0) {
-  renderProduk();
-  renderRincian();
-}
-
-// Ambil data terbaru dari Spreadsheet
-loadProdukDariSheet((success) => {
-  if (success) {
-    // Kalau berhasil, perbarui variabel produkList dan render ulang layarnya
-    produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
-    renderProduk();
-    renderRincian();
-  } else if (produkList.length === 0) {
-    alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
-  }
+renderProduk();
+renderRincian();
 });
-
 </script>
 
 <script src="function/Navigation.js?v=1"></script>
