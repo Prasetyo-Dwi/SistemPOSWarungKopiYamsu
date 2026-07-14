@@ -34,7 +34,7 @@
 
     <!-- ACTIONS -->
     <div class="header-actions">
-      <button class="btn-reset" onclick="resetRiwayat()">Reset Semua</button>
+      <button class="btn-reset" onclick="loadRiwayat()">Muat Ulang Daftar</button>
       <div class="storage-info" id="storage-info">Menghitung...</div>
     </div>
 
@@ -48,15 +48,13 @@
       <div class="kosong-state">Belum ada transaksi hari ini</div>
     </div>
 
-    <!-- TOMBOL SHEET -->
-    <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
-      Buka Spreadsheet
-    </a>
-
-  </div><!-- end scroll-area -->
+  </div>
 
   <!-- FOOTER NAV -->
   <div class="footer-nav">
+    <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
+        Buka Spreadsheet
+    </a>
     <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
     <div class="nav-item active" data-page="riwayat"><p>Riwayat</p></div>
     <div class="nav-item" data-page="pengeluaran"><p>Pengeluaran</p></div>
@@ -69,11 +67,16 @@
 
 <script>
 
+// ===== STATE GLOBAL =====
+let riwayatGlobal = [];
+let editIndex     = -1;
+let itemsSebelumEdit = [];
+
 // ===== CLOCK =====
 function tick() {
   const now = new Date();
   document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', {
-    weekday:'short', day:'numeric', month:'long', year:'numeric'
+    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric'
   });
 }
 tick();
@@ -87,7 +90,7 @@ function hitungStorage() {
     }
   }
   const usedKB = total / 1024;
-  const max = 5120;
+  const max    = 5120;
   const persen = ((usedKB / max) * 100).toFixed(1);
   const usedText = usedKB < 1024
     ? usedKB.toFixed(1) + ' KB'
@@ -95,22 +98,47 @@ function hitungStorage() {
 
   const el = document.getElementById('storage-info');
   el.textContent = usedText + ' / 5 MB (' + persen + '%)';
-
   el.classList.remove('safe', 'warn', 'danger');
-  if (persen >= 80) el.classList.add('danger');
+  if      (persen >= 80) el.classList.add('danger');
   else if (persen >= 60) el.classList.add('warn');
-  else el.classList.add('safe');
+  else                   el.classList.add('safe');
 }
 
-// ===== LOAD RIWAYAT =====
+// ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
-  cekAutoResetRiwayat();
+  fetch(`${SHEET_URL}?action=getRiwayat`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'ok' && data.riwayat) {
+        renderRiwayatList(data.riwayat);
+      }
+    })
+    .catch(() => {
+      const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+      renderRiwayatList(riwayat);
+    });
+}
 
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+// ===== RENDER RIWAYAT LIST =====
+function renderRiwayatList(riwayat) {
+  // Pertahankan ceklis lokal (dibayarUnit) kalau nomor transaksinya masih sama
+  riwayat.forEach(rBaru => {
+    const rLama = riwayatGlobal.find(x => String(x.nomor) === String(rBaru.nomor));
+    if (!rLama) return;
+    rBaru.items.forEach(itemBaru => {
+      const itemLama = rLama.items.find(x => x.produk.toLowerCase() === itemBaru.produk.toLowerCase());
+      if (itemLama && Array.isArray(itemLama.dibayarUnit)) {
+        itemBaru.dibayarUnit = itemLama.dibayarUnit.slice(0, itemBaru.jumlah);
+      }
+    });
+  });
+
+  riwayatGlobal = riwayat;
+  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
-
   document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
@@ -118,7 +146,9 @@ function loadRiwayat() {
     return;
   }
 
-  list.innerHTML = riwayat.map((r, i) => `
+  list.innerHTML = riwayat.map((r, i) => {
+    const lunas = r.status === 'lunas' || r.status === 'tersimpan';
+    return `
     <div class="riwayat-card" id="card-${i}">
       <div class="card-header" onclick="toggleCard(this)">
         <div class="card-header-left">
@@ -126,13 +156,13 @@ function loadRiwayat() {
             <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2"/></svg>
           </div>
           <div class="card-info">
-            <div class="card-title">Transaksi #${String(riwayat.length - i).padStart(3,'0')}</div>
+            <div class="card-title">Transaksi #${String(r.nomor).padStart(3, '0')}</div>
             <div class="card-meta">${r.tanggal} · ${r.items.length} item</div>
           </div>
         </div>
         <div class="card-header-right">
-          <span class="badge-status ${r.status === 'tersimpan' ? 'badge-lunas' : 'badge-belum'}">
-            ${r.status === 'tersimpan' ? 'Sudah dibayar' : 'Belum dibayar'}
+          <span class="badge-status ${lunas ? 'badge-lunas' : 'badge-belum'}">
+            ${lunas ? 'Sudah dibayar' : 'Belum dibayar'}
           </span>
           <div class="toggle-btn">
             <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
@@ -150,53 +180,34 @@ function loadRiwayat() {
               <div class="total-label">TOTAL</div>
               <div class="total-val">${fmt(r.total)}</div>
             </div>
-            ${r.status === 'tersimpan'
+            ${lunas
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
-                  <button class="btn-edit-trx" onclick="bukaEdit(${i})">✏️ Edit</button>
-                  <button class="btn-bayar" onclick="simpanKeSheet(${i})">Bayar Semua</button>
+                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', this)">Hapus</button>
+                  <button class="btn-edit-trx"  onclick="bukaEdit(${i})">Edit</button>
+                  <button class="btn-bayar"      onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar Semua</button>
                 </div>`
             }
           </div>
         </div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
-// ===== TOGGLE CARD =====
-function toggleCard(header) {
-  const card = header.closest('.riwayat-card');
-  const body = card.querySelector('.card-body');
-
-  if (card.classList.contains('open')) {
-    body.style.maxHeight = body.scrollHeight + 'px';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        body.style.maxHeight = '0';
-      });
-    });
-    card.classList.remove('open');
-  } else {
-    card.classList.add('open');
-    body.style.maxHeight = body.scrollHeight + 'px';
-    body.addEventListener('transitionend', () => {
-      body.style.maxHeight = 'none';
-    }, { once: true });
-  }
-}
-
-// ===== SIMPAN KE SPREADSHEET =====
+// ===== RENDER ITEM PER UNIT + CEKLIS LOKAL =====
 function renderUnitRows(item, itemIdx, riwayatIdx, statusTransaksi) {
   const jumlah = item.jumlah || 1;
   const hargaSatuan = item.harga / jumlah;
   if (!item.dibayarUnit || item.dibayarUnit.length !== jumlah) {
     item.dibayarUnit = new Array(jumlah).fill(false);
   }
+  const sudahLunas = statusTransaksi === 'lunas' || statusTransaksi === 'tersimpan';
   let html = '';
   for (let u = 0; u < jumlah; u++) {
-    const lunas = statusTransaksi === 'tersimpan' || !!item.dibayarUnit[u];
-    const clickable = statusTransaksi !== 'tersimpan';
+    const lunas = sudahLunas || !!item.dibayarUnit[u];
+    const clickable = !sudahLunas;
     html += `
       <div class="item-row ${lunas ? 'item-lunas' : ''}">
         <span>- ${item.produk}</span>
@@ -212,9 +223,11 @@ function renderUnitRows(item, itemIdx, riwayatIdx, statusTransaksi) {
   return html;
 }
 
+// ===== TOGGLE CEKLIS LOKAL PER UNIT =====
+// Cuma nandain lokal (belum kekirim ke Sheet). Baru kekirim beneran
+// pas tombol "Bayar Semua" ditekan.
 function toggleUnitBayar(riwayatIdx, itemIdx, unitIdx, el) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[riwayatIdx];
+  const r = riwayatGlobal[riwayatIdx];
   if (!r) return;
   const item = r.items[itemIdx];
   if (!item) return;
@@ -223,7 +236,7 @@ function toggleUnitBayar(riwayatIdx, itemIdx, unitIdx, el) {
     item.dibayarUnit = new Array(jumlah).fill(false);
   }
   item.dibayarUnit[unitIdx] = !item.dibayarUnit[unitIdx];
-  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+  localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
 
   const checked = item.dibayarUnit[unitIdx];
   const row = el.closest('.item-row');
@@ -231,44 +244,50 @@ function toggleUnitBayar(riwayatIdx, itemIdx, unitIdx, el) {
   el.classList.toggle('checked', checked);
 }
 
-function simpanKeSheet(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
+// ===== TOGGLE CARD =====
+function toggleCard(header) {
+  const card = header.closest('.riwayat-card');
+  const body = card.querySelector('.card-body');
 
-  const btn = document.querySelector(`#card-${index} .btn-bayar`);
-  btn.textContent = 'Memproses...';
-  btn.disabled = true;
-
-  const nomorTransaksi = String(riwayat.length - index).padStart(3, '0');
-
-  const url = SHEET_URL
-    + '?tanggal=' + encodeURIComponent(r.tanggal)
-    + '&nomor=' + encodeURIComponent(nomorTransaksi)
-    + '&items=' + encodeURIComponent(JSON.stringify(r.items));
-
-  fetch(url, { mode: 'no-cors' })
-  .then(() => {
-    riwayat[index].status = 'tersimpan';
-    localStorage.setItem('riwayat', JSON.stringify(riwayat));
-    tambahPemasukan(r.total);
-    loadRiwayat();
-  })
-  .catch(() => {
-    btn.textContent = 'Bayar';
-    btn.disabled = false;
-    alert('Gagal konek ke server!');
-  });
+  if (card.classList.contains('open')) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { body.style.maxHeight = '0'; });
+    });
+    card.classList.remove('open');
+  } else {
+    card.classList.add('open');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.addEventListener('transitionend', () => {
+      body.style.maxHeight = 'none';
+    }, { once: true });
+  }
 }
 
-// ===== RESET RIWAYAT =====
-function resetRiwayat() {
-  if (!confirm('Yakin mau hapus semua riwayat?')) return;
-  localStorage.removeItem('riwayat');
-  localStorage.removeItem('nomorTransaksi');
-  localStorage.removeItem('riwayat_mulai');
-  localStorage.removeItem('pemasukan_harian');
-  loadRiwayat();
+// ===== UBAH STATUS TRANSAKSI (BAYAR SEMUA) =====
+function ubahStatusTransaksi(nomor, statusBaru, index) {
+  const btn = document.querySelector(`#card-${index} .btn-bayar`);
+  if (btn) { btn.textContent = 'Memproses...'; btn.disabled = true; }
+
+  const params = new URLSearchParams({
+    action: 'updateStatusTransaksi',
+    nomor:  nomor,
+    status: statusBaru
+  });
+
+  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
+    .then(() => {
+      if (riwayatGlobal[index]) {
+        tambahPemasukan(riwayatGlobal[index].total);
+        riwayatGlobal[index].status = 'tersimpan';
+        localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
+      }
+      loadRiwayat();
+    })
+    .catch(() => {
+      if (btn) { btn.textContent = 'Bayar Semua'; btn.disabled = false; }
+      alert('Gagal update status!');
+    });
 }
 
 // ===== HELPER STOK =====
@@ -279,7 +298,6 @@ function saveProdukList(list) {
   localStorage.setItem('produk_list', JSON.stringify(list));
 }
 function ubahStokProduk(namaProduk, delta) {
-  // delta positif = tambah stok, negatif = kurangi stok
   const list = getProdukList();
   const p = list.find(x => x.nama.toLowerCase() === namaProduk.toLowerCase());
   if (p) {
@@ -289,22 +307,22 @@ function ubahStokProduk(namaProduk, delta) {
   }
 }
 
-// ===== EDIT TRANSAKSI =====
-let editIndex = -1;
-let itemsSebelumEdit = []; // snapshot qty sebelum edit untuk hitung selisih
-
+// ===== BUKA EDIT =====
 function bukaEdit(index) {
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const r = riwayat[index];
-  if (!r) return;
-  editIndex = index;
-  // Simpan snapshot item sebelum edit
+  const r = riwayatGlobal[index];
+  if (!r) {
+    alert('Data transaksi tidak ditemukan.');
+    return;
+  }
+
+  editIndex        = index;
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
   document.getElementById('modal-edit-overlay').classList.add('active');
 }
 
+// ===== RENDER MODAL EDIT =====
 function renderModalEdit(items) {
   document.getElementById('modal-edit-body').innerHTML = `
     <div id="edit-items">
@@ -327,17 +345,18 @@ function renderModalEdit(items) {
   `;
 }
 
+// ===== EDIT QTY =====
 function editQty(i, delta) {
   const span = document.getElementById(`edit-qty-${i}`);
-  const cur = parseInt(span.textContent) || 1;
-  const baru = Math.max(1, cur + delta);
-  span.textContent = baru;
+  const cur  = parseInt(span.textContent) || 1;
+  span.textContent = Math.max(1, cur + delta);
 }
 
+// ===== HAPUS ITEM DI MODAL EDIT =====
 function hapusItemEdit(i) {
   const row = document.getElementById(`edit-row-${i}`);
   if (row) row.remove();
-  // reindex
+
   document.querySelectorAll('#edit-items .edit-item-row').forEach((el, idx) => {
     el.id = `edit-row-${idx}`;
     el.querySelector('.btn-hapus-row').setAttribute('onclick', `hapusItemEdit(${idx})`);
@@ -348,10 +367,11 @@ function hapusItemEdit(i) {
   });
 }
 
-function simpanEdit() {
+// ===== SIMPAN EDIT =====
+async function simpanEdit() {
   if (editIndex === -1) return;
 
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
+  const rows     = document.querySelectorAll('#edit-items .edit-item-row');
   const itemsBaru = [];
   rows.forEach(row => {
     const produk = row.dataset.nama;
@@ -362,40 +382,66 @@ function simpanEdit() {
 
   if (itemsBaru.length === 0) { alert('Minimal ada 1 item!'); return; }
 
-  // Hitung selisih stok per produk
-  // Buat map qty sebelum dan sesudah
-  const mapSebelum = {};
-  itemsSebelumEdit.forEach(x => {
-    mapSebelum[x.produk.toLowerCase()] = (mapSebelum[x.produk.toLowerCase()] || 0) + x.jumlah;
+  const r = riwayatGlobal[editIndex];
+  if (!r) { alert('Data transaksi tidak ditemukan.'); return; }
+
+  // Pertahankan ceklis lokal per produk yang masih ada
+  itemsBaru.forEach(itemBaru => {
+    const lama = r.items.find(x => x.produk.toLowerCase() === itemBaru.produk.toLowerCase());
+    const dibayarLama = (lama && Array.isArray(lama.dibayarUnit)) ? lama.dibayarUnit : [];
+    const dibayarBaru = [];
+    for (let u = 0; u < itemBaru.jumlah; u++) {
+      dibayarBaru.push(!!dibayarLama[u]);
+    }
+    itemBaru.dibayarUnit = dibayarBaru;
   });
-  const mapBaru = {};
-  itemsBaru.forEach(x => {
-    mapBaru[x.produk.toLowerCase()] = { nama: x.produk, qty: (mapBaru[x.produk.toLowerCase()]?.qty || 0) + x.jumlah };
-  });
 
-  // Kembalikan stok untuk semua produk lama dulu
-  itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk, x.jumlah));
-  // Kurangi stok dengan qty baru
-  itemsBaru.forEach(x => ubahStokProduk(x.produk, -x.jumlah));
+  const btnSimpan = document.querySelector('.btn-modal-save');
+  if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
 
-  // Update riwayat
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
-  riwayat[editIndex].items = itemsBaru;
-  riwayat[editIndex].total = total;
-  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+  try {
+    const params = new URLSearchParams({
+      action:     'editTransaksi',
+      nomor:      r.nomor,
+      tanggal:    r.tanggal,
+      items:      JSON.stringify(itemsBaru),
+      itemsLama:  JSON.stringify(itemsSebelumEdit)
+    });
 
-  tutupModalEdit();
-  loadRiwayat();
+    const res  = await fetch(`${SHEET_URL}?${params}`);
+    const data = await res.json();
+
+    if (data.status !== 'ok') {
+      alert('Gagal simpan: ' + (data.message || 'Unknown error'));
+      if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+      return;
+    }
+
+    itemsSebelumEdit.forEach(x => ubahStokProduk(x.produk,  x.jumlah));
+    itemsBaru.forEach(x        => ubahStokProduk(x.produk, -x.jumlah));
+
+    const total = itemsBaru.reduce((s, x) => s + x.jumlah * x.harga, 0);
+    riwayatGlobal[editIndex].items = itemsBaru;
+    riwayatGlobal[editIndex].total = total;
+    localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
+
+    tutupModalEdit();
+    loadRiwayat();
+
+  } catch (err) {
+    alert('Error: ' + err.message);
+    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+  }
 }
 
+// ===== TUTUP MODAL EDIT =====
 function tutupModalEdit() {
   document.getElementById('modal-edit-overlay').classList.remove('active');
-  editIndex = -1;
+  editIndex        = -1;
   itemsSebelumEdit = [];
 }
 
-// ===== PILIH PRODUK (untuk tambah item di edit) =====
+// ===== BUKA PILIH PRODUK =====
 function bukaPilihProduk() {
   const produkList = getProdukList();
   const grid = document.getElementById('produk-picker-grid');
@@ -410,17 +456,16 @@ function bukaPilihProduk() {
   document.getElementById('modal-picker-overlay').classList.add('active');
 }
 
+// ===== PILIH PRODUK DARI PICKER =====
 function pilihProduk(idx) {
   const produkList = getProdukList();
   const p = produkList[idx];
   if (!p) return;
 
-  // Cek apakah produk ini sudah ada di edit items
-  const rows = document.querySelectorAll('#edit-items .edit-item-row');
-  let found = false;
+  const rows  = document.querySelectorAll('#edit-items .edit-item-row');
+  let found   = false;
   rows.forEach(row => {
     if (row.dataset.nama.toLowerCase() === p.nama.toLowerCase()) {
-      // Tambah qty yang sudah ada
       const qtyEl = row.querySelector('[id^="edit-qty-"]');
       qtyEl.textContent = parseInt(qtyEl.textContent) + 1;
       found = true;
@@ -428,13 +473,12 @@ function pilihProduk(idx) {
   });
 
   if (!found) {
-    // Tambah baris baru
     const container = document.getElementById('edit-items');
-    const idx2 = container.querySelectorAll('.edit-item-row').length;
-    const div = document.createElement('div');
-    div.className = 'edit-item-row';
-    div.id = `edit-row-${idx2}`;
-    div.dataset.nama = p.nama;
+    const newIdx    = container.querySelectorAll('.edit-item-row').length;
+    const div       = document.createElement('div');
+    div.className   = 'edit-item-row';
+    div.id          = `edit-row-${newIdx}`;
+    div.dataset.nama  = p.nama;
     div.dataset.harga = p.harga;
     div.innerHTML = `
       <div class="edit-item-info">
@@ -442,10 +486,10 @@ function pilihProduk(idx) {
         <span class="edit-item-harga">${fmt(p.harga)}</span>
       </div>
       <div class="edit-qty-control">
-        <button onclick="editQty(${idx2}, -1)">−</button>
-        <span id="edit-qty-${idx2}">1</span>
-        <button onclick="editQty(${idx2}, 1)">+</button>
-        <button class="btn-hapus-row" onclick="hapusItemEdit(${idx2})">🗑️</button>
+        <button onclick="editQty(${newIdx}, -1)">−</button>
+        <span id="edit-qty-${newIdx}">1</span>
+        <button onclick="editQty(${newIdx}, 1)">+</button>
+        <button class="btn-hapus-row" onclick="hapusItemEdit(${newIdx})">🗑️</button>
       </div>
     `;
     container.appendChild(div);
@@ -454,11 +498,35 @@ function pilihProduk(idx) {
   tutupPicker();
 }
 
+// ===== HAPUS TRANSAKSI =====
+async function hapusTransaksi(nomor, btn) {
+  if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3, '0')}?`)) return;
+  if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
+
+  try {
+    const res  = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      loadRiwayat();
+    } else {
+      alert('Gagal hapus: ' + data.message);
+      if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+    if (btn) { btn.textContent = 'Hapus'; btn.disabled = false; }
+  }
+}
+
+// ===== TUTUP PICKER =====
 function tutupPicker() {
   document.getElementById('modal-picker-overlay').classList.remove('active');
 }
 
+// ===== INIT =====
 loadRiwayat();
+
 </script>
 
 <!-- MODAL EDIT TRANSAKSI -->
@@ -471,7 +539,7 @@ loadRiwayat();
     <div class="modal-body" id="modal-edit-body"></div>
     <div class="modal-footer">
       <button class="btn-modal-cancel" onclick="tutupModalEdit()">Batal</button>
-      <button class="btn-modal-save" onclick="simpanEdit()">Simpan</button>
+      <button class="btn-modal-save"   onclick="simpanEdit()">Simpan</button>
     </div>
   </div>
 </div>
