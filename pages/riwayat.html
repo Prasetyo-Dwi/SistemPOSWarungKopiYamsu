@@ -121,13 +121,9 @@ function loadRiwayat() {
 
 // ===== RENDER RIWAYAT LIST =====
 function renderRiwayatList(riwayat) {
-  // Pertahankan ceklis lokal (dibayarUnit) kalau nomor DAN tanggal transaksinya masih sama.
-  // PENTING: nomor transaksi reset tiap hari, jadi mencocokkan nomor saja
-  // bisa salah nempel ke transaksi hari lain yang kebetulan nomornya sama.
+  // Pertahankan ceklis lokal (dibayarUnit) kalau nomor transaksinya masih sama
   riwayat.forEach(rBaru => {
-    const rLama = riwayatGlobal.find(x =>
-      String(x.nomor) === String(rBaru.nomor) && x.tanggal === rBaru.tanggal
-    );
+    const rLama = riwayatGlobal.find(x => String(x.nomor) === String(rBaru.nomor));
     if (!rLama) return;
     rBaru.items.forEach(itemBaru => {
       const itemLama = rLama.items.find(x => x.produk.toLowerCase() === itemBaru.produk.toLowerCase());
@@ -187,9 +183,9 @@ function renderRiwayatList(riwayat) {
             ${lunas
               ? '<div class="btn-lunas">✓ Sudah dibayar</div>'
               : `<div style="display:flex;gap:8px;">
-                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', '${r.tanggal}', this)">Hapus</button>
+                  <button class="btn-hapus-trx" onclick="hapusTransaksi('${r.nomor}', this)">Hapus</button>
                   <button class="btn-edit-trx"  onclick="bukaEdit(${i})">Edit</button>
-                  <button class="btn-bayar"      onclick="ubahStatusTransaksi('${r.nomor}', '${r.tanggal}', 'lunas', ${i})">Bayar Semua</button>
+                  <button class="btn-bayar"      onclick="ubahStatusTransaksi('${r.nomor}', 'lunas', ${i})">Bayar Semua</button>
                 </div>`
             }
           </div>
@@ -203,10 +199,7 @@ function renderRiwayatList(riwayat) {
 // ===== RENDER ITEM PER UNIT + CEKLIS LOKAL =====
 function renderUnitRows(item, itemIdx, riwayatIdx, statusTransaksi) {
   const jumlah = item.jumlah || 1;
-  // item.harga SUDAH harga per-unit (bukan total baris) — konsisten dengan
-  // cara backend (getRiwayat) menghitung total = harga * jumlah.
-  // JANGAN dibagi jumlah lagi di sini, itu penyebab harga tampil salah.
-  const hargaSatuan = item.harga;
+  const hargaSatuan = item.harga / jumlah;
   if (!item.dibayarUnit || item.dibayarUnit.length !== jumlah) {
     item.dibayarUnit = new Array(jumlah).fill(false);
   }
@@ -272,18 +265,14 @@ function toggleCard(header) {
 }
 
 // ===== UBAH STATUS TRANSAKSI (BAYAR SEMUA) =====
-// PENTING: nomor + tanggal WAJIB dikirim bersama. Nomor transaksi reset
-// tiap hari, jadi kalau cuma kirim nomor, transaksi hari LAIN yang
-// kebetulan nomornya sama bisa ikut ke-set lunas / ke-copy ke sheet Transaksi.
-function ubahStatusTransaksi(nomor, tanggal, statusBaru, index) {
+function ubahStatusTransaksi(nomor, statusBaru, index) {
   const btn = document.querySelector(`#card-${index} .btn-bayar`);
   if (btn) { btn.textContent = 'Memproses...'; btn.disabled = true; }
 
   const params = new URLSearchParams({
-    action:  'updateStatusTransaksi',
-    nomor:   nomor,
-    tanggal: tanggal,
-    status:  statusBaru
+    action: 'updateStatusTransaksi',
+    nomor:  nomor,
+    status: statusBaru
   });
 
   fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' })
@@ -330,6 +319,12 @@ function bukaEdit(index) {
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
+
+  // Pengaman: pastikan tombol Simpan selalu dalam kondisi normal
+  // tiap kali modal dibuka, jaga-jaga kalau ada state nyangkut.
+  const btnSimpan = document.querySelector('.btn-modal-save');
+  if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+
   document.getElementById('modal-edit-overlay').classList.add('active');
 }
 
@@ -436,6 +431,10 @@ async function simpanEdit() {
     riwayatGlobal[editIndex].total = total;
     localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
 
+    // PENTING: reset tombol balik ke "Simpan" walau berhasil,
+    // supaya gak nyangkut "Menyimpan..." pas modal dibuka lagi lain kali.
+    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+
     tutupModalEdit();
     loadRiwayat();
 
@@ -510,20 +509,12 @@ function pilihProduk(idx) {
 }
 
 // ===== HAPUS TRANSAKSI =====
-// PENTING: nomor + tanggal WAJIB dikirim bersama. Karena nomor transaksi
-// reset tiap hari, kalau cuma kirim nomor maka transaksi hari LAIN yang
-// kebetulan punya nomor sama akan ikut terhapus dari sheet Riwayat.
-async function hapusTransaksi(nomor, tanggal, btn) {
+async function hapusTransaksi(nomor, btn) {
   if (!confirm(`Hapus Transaksi #${String(nomor).padStart(3, '0')}?`)) return;
   if (btn) { btn.textContent = 'Menghapus...'; btn.disabled = true; }
 
   try {
-    const params = new URLSearchParams({
-      action:  'hapusTransaksi',
-      nomor:   nomor,
-      tanggal: tanggal
-    });
-    const res  = await fetch(`${SHEET_URL}?${params}`);
+    const res  = await fetch(`${SHEET_URL}?action=hapusTransaksi&nomor=${nomor}`);
     const data = await res.json();
 
     if (data.status === 'ok') {
@@ -544,11 +535,6 @@ function tutupPicker() {
 }
 
 // ===== INIT =====
-// PENTING: muat cache lokal dulu ke riwayatGlobal SEBELUM fetch data terbaru.
-// Kalau riwayatGlobal dibiarkan kosong, proses "pertahankan ceklis lokal"
-// di renderRiwayatList() gak ada yang bisa dicocokkan, jadi ceklis per-unit
-// yang sudah ditandai selalu hilang tiap kali halaman di-refresh.
-riwayatGlobal = JSON.parse(localStorage.getItem('riwayat') || '[]');
 loadRiwayat();
 
 </script>
