@@ -203,7 +203,10 @@ function renderRiwayatList(riwayat) {
 // ===== RENDER ITEM PER UNIT + CEKLIS LOKAL =====
 function renderUnitRows(item, itemIdx, riwayatIdx, statusTransaksi) {
   const jumlah = item.jumlah || 1;
-  const hargaSatuan = item.harga / jumlah;
+  // item.harga SUDAH harga per-unit (bukan total baris) — konsisten dengan
+  // cara backend (getRiwayat) menghitung total = harga * jumlah.
+  // JANGAN dibagi jumlah lagi di sini, itu penyebab harga tampil salah.
+  const hargaSatuan = item.harga;
   if (!item.dibayarUnit || item.dibayarUnit.length !== jumlah) {
     item.dibayarUnit = new Array(jumlah).fill(false);
   }
