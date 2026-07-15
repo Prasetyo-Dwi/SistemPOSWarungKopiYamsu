@@ -202,7 +202,8 @@ function cekAutoResetRiwayat() {
   if (selisihHari >= 2) {
     localStorage.removeItem('riwayat');
     localStorage.removeItem('riwayat_mulai');
-    localStorage.removeItem('nomorTransaksi');
+    localStorage.removeItem('nomorTransaksi');     // key lama, jaga-jaga masih ada
+    localStorage.removeItem('nomorTransaksiData');  // key baru (reset harian per nomor transaksi)
     localStorage.removeItem('pemasukan_harian');
     console.log('Riwayat auto-reset setelah 2 hari.');
   }

@@ -179,13 +179,26 @@ function renderRincian() {
 }
 
 // ==========================================
-// 5. NOMOR TRANSAKSI
+// 5. NOMOR TRANSAKSI (reset tiap hari baru)
 // ==========================================
+// Nomor transaksi HARUS unik dalam satu hari yang sama, tapi BOLEH
+// sama di hari yang berbeda (nomor mulai lagi dari 001 tiap hari baru).
+// Karena itu, semua aksi yang menyasar satu transaksi spesifik
+// (hapus, edit, bayar) WAJIB dikirim bersama nomor + tanggal —
+// nomor saja tidak cukup untuk mengenali transaksi secara unik.
 function generateNomorTransaksi() {
-  let n = parseInt(localStorage.getItem('nomorTransaksi') || '0');
-  n += 1;
-  localStorage.setItem('nomorTransaksi', String(n));
-  return String(n).padStart(3, '0');
+  const today = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+
+  let data = JSON.parse(localStorage.getItem('nomorTransaksiData') || '{}');
+  if (data.tanggal !== today) {
+    data = { tanggal: today, counter: 0 };
+  }
+  data.counter += 1;
+  localStorage.setItem('nomorTransaksiData', JSON.stringify(data));
+
+  return String(data.counter).padStart(3, '0');
 }
 
 // ==========================================
