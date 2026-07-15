@@ -415,7 +415,13 @@ function renderList() {
   `).join('');
 }
 
+// Tampilkan cache lokal dulu (biar gak nunggu internet), lalu langsung
+// sinkron ke Sheet begitu halaman dibuka — konsisten dengan halaman
+// Transaksi & Riwayat yang juga auto-load dari Sheet saat dibuka.
 renderList();
+loadPengeluaranDariSheet((berhasil) => {
+  renderList();
+});
 </script>
 
 <script src="../function/Navigation.js?v=1"></script>

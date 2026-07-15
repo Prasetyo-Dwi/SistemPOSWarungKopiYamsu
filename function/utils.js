@@ -118,7 +118,12 @@ function loadPengeluaranDariSheet(callback) {
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      if (data.status === 'ok' && Array.isArray(data.pengeluaran) && data.pengeluaran.length > 0) {
+      // PENTING: tetap sync localStorage walau hasilnya KOSONG.
+      // Sebelumnya kalau data.pengeluaran kosong (misal semua data di
+      // Sheet bukan tanggal hari ini), localStorage tidak pernah
+      // diperbarui, jadi data lama/nyangkut dari sesi sebelumnya
+      // terus muncul padahal seharusnya sudah kosong.
+      if (data.status === 'ok' && Array.isArray(data.pengeluaran)) {
         localStorage.setItem('pengeluaran', JSON.stringify(data.pengeluaran));
       }
       callback(true);
@@ -202,8 +207,7 @@ function cekAutoResetRiwayat() {
   if (selisihHari >= 2) {
     localStorage.removeItem('riwayat');
     localStorage.removeItem('riwayat_mulai');
-    localStorage.removeItem('nomorTransaksi');     // key lama, jaga-jaga masih ada
-    localStorage.removeItem('nomorTransaksiData');  // key baru (reset harian per nomor transaksi)
+    localStorage.removeItem('nomorTransaksi');
     localStorage.removeItem('pemasukan_harian');
     console.log('Riwayat auto-reset setelah 2 hari.');
   }
