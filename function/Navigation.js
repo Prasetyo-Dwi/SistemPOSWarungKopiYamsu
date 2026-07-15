@@ -6,11 +6,13 @@ const NAV_CONFIG = {
     { label: 'Transaksi',   file: 'index.html' },
     { label: 'Riwayat',     file: 'pages/riwayat.html' },
     { label: 'Pengeluaran', file: 'pages/pengeluaran.html' },
+    { label: 'Laporan',     file: 'pages/laporan.html' },
   ],
   owner: [
     { label: 'Produk',      file: 'pages/produk.html' },
     { label: 'Riwayat',     file: 'pages/riwayat.html' },
     { label: 'Pengeluaran', file: 'pages/pengeluaran.html' },
+    { label: 'Laporan',     file: 'pages/laporan.html' },
   ],
 };
 
@@ -19,6 +21,7 @@ function getCurrentPage() {
   if (path.includes('riwayat'))     return 'pages/riwayat.html';
   if (path.includes('produk'))      return 'pages/produk.html';
   if (path.includes('pengeluaran')) return 'pages/pengeluaran.html';
+  if (path.includes('laporan'))     return 'pages/laporan.html';
   return 'index.html';
 }
 
@@ -48,7 +51,7 @@ function navigateTo(targetFile) {
   const curFile = getCurrentPage();
   if (targetFile === curFile) return;
 
-  const allFiles = ['index.html', 'pages/produk.html', 'pages/riwayat.html', 'pages/pengeluaran.html'];
+  const allFiles = ['index.html', 'pages/produk.html', 'pages/riwayat.html', 'pages/pengeluaran.html', 'pages/laporan.html'];
   const curIdx = allFiles.indexOf(curFile);
   const tgtIdx = allFiles.indexOf(targetFile);
   const direction = tgtIdx > curIdx ? 1 : -1;

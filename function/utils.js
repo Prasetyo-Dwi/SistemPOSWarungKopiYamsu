@@ -4,6 +4,58 @@
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxvAkJM8wvA9zZWeRKIndgkWWb8eg5JvdeGofLWJW6TRovTr91RhHYjonq7njciTkj0YA/exec';
 
+// ===== TOAST NOTIFIKASI (ganti alert() bawaan browser) =====
+// Pakai: showToast('Transaksi berhasil disimpan!') atau
+//        showToast('Stok tidak cukup!', 'error')
+function showToast(message, type) {
+  type = type || 'success';
+
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.style.cssText = `
+      position: fixed; top: 18px; left: 50%;
+      transform: translateX(-50%) translateY(-24px);
+      max-width: 440px; width: calc(100% - 32px);
+      background: #1e214f; color: white; padding: 14px 16px;
+      border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+      font-family: 'Poppins', sans-serif; font-size: 13.5px; font-weight: 600;
+      display: flex; align-items: center; gap: 10px;
+      z-index: 99999; opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: none;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  const styleByType = {
+    success: { bg: '#22c55e', icon: '✓' },
+    error:   { bg: '#ef4444', icon: '✕' },
+    info:    { bg: '#3b82f6', icon: 'i' }
+  };
+  const s = styleByType[type] || styleByType.success;
+
+  toast.innerHTML = `
+    <span style="width:22px;height:22px;border-radius:50%;background:${s.bg};
+      display:flex;align-items:center;justify-content:center;flex-shrink:0;
+      font-size:12px;font-weight:700;">${s.icon}</span>
+    <span style="line-height:1.4;">${message}</span>
+  `;
+
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-24px)';
+  }, 2600);
+}
+
+
 // ===== FORMAT RUPIAH =====
 // Mengubah angka jadi format Rupiah.
 // Contoh: fmt(8000) → "Rp 8.000"
