@@ -135,40 +135,55 @@
       .header-total { font-size: 17px; }
     }
 
-    /* TAMBAH ini */
-.btn-refresh-pengeluaran {
-  border: none;
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  background: #1e214f;
-  color: white;
-  font-size: 18px;
-  cursor: pointer;
-  flex-shrink: 0;
+/* ── HEADER ACTIONS (samain kayak Riwayat) ── */
+.header-actions {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
+  margin-top: 14px;
+  gap: 10px;
+}
+
+.btn-reset {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  color: white;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
   transition: background 0.2s;
 }
 
-.btn-refresh-pengeluaran:hover { 
-  background: #2a2e68; 
+.btn-reset:hover {
+  background: rgba(255,255,255,0.1);
 }
 
-.btn-refresh-pengeluaran:disabled { 
-  opacity: 0.6; 
-  cursor: not-allowed; 
+.btn-reset.spinning {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
-.btn-refresh-pengeluaran.spinning {
-  animation: spin 0.8s linear infinite;
+.storage-info {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: white;
+  transition: background 0.3s, border-color 0.3s;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+.storage-info.safe   { border-color: #22c55e; color: #22c55e; }
+.storage-info.warn   { border-color: #f59e0b; color: #f59e0b; }
+.storage-info.danger { border-color: #ef4444; color: #ef4444; }
   </style>
 </head>
 <body>
@@ -181,11 +196,15 @@
         <div class="header-sub" id="tgl-el">—</div>
       </div>
       <div class="header-right">
-        <div class="header-label">Total hari ini</div>
+        <div class="header-label">Pengeluaran hari ini</div>
         <div class="header-total" id="total-hari-ini">Rp 0</div>
-        <button class="btn-refresh-pengeluaran" onclick="refreshPengeluaran()" title="Sync dari Sheets" style="margin-top: 8px;">🔄</button>
-    </div>
       </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="header-actions">
+      <button class="btn-reset" onclick="refreshPengeluaran()">Muat Ulang Daftar</button>
+      <div class="storage-info" id="storage-info">Menghitung...</div>
     </div>
   </div>
 
@@ -364,10 +383,11 @@ function resetSemua() {
 
  //refresh pengeluaran
   function refreshPengeluaran() {
-  const btn = document.querySelector('.btn-refresh-pengeluaran');  // ubah ini
+  const btn = document.querySelector('.btn-reset');
   if (btn) {
     btn.classList.add('spinning');
     btn.disabled = true;
+    btn.textContent = 'Memuat...';
   }
 
   loadPengeluaranDariSheet((berhasil) => {
@@ -376,6 +396,7 @@ function resetSemua() {
     if (btn) {
       btn.classList.remove('spinning');
       btn.disabled = false;
+      btn.textContent = 'Muat Ulang Daftar';
     }
 
     if (berhasil) {
@@ -385,13 +406,37 @@ function resetSemua() {
     }
   });
 }
-  
-// Render list
+
+// ===== HITUNG STORAGE (samain kayak Riwayat) =====
+function hitungStorage() {
+  let total = 0;
+  for (let key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      total += (localStorage[key].length + key.length) * 2;
+    }
+  }
+  const usedKB = total / 1024;
+  const max = 5120;
+  const persen = ((usedKB / max) * 100).toFixed(1);
+  const usedText = usedKB < 1024
+    ? usedKB.toFixed(1) + ' KB'
+    : (usedKB / 1024).toFixed(2) + ' MB';
+
+  const el = document.getElementById('storage-info');
+  if (!el) return;
+  el.textContent = usedText + ' / 5 MB (' + persen + '%)';
+  el.classList.remove('safe', 'warn', 'danger');
+  if (persen >= 80) el.classList.add('danger');
+  else if (persen >= 60) el.classList.add('warn');
+  else el.classList.add('safe');
+}
+
 function renderList() {
   const list = getList();
   const totalHariIni = list.reduce((s, x) => s + (x.total ?? x.jumlah), 0);
   document.getElementById('total-hari-ini').textContent = fmt(totalHariIni);
   document.getElementById('info-jumlah').textContent    = list.length + ' pengeluaran';
+  hitungStorage();
 
   const el = document.getElementById('list-pengeluaran');
   if (list.length === 0) {
