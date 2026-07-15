@@ -544,6 +544,11 @@ function tutupPicker() {
 }
 
 // ===== INIT =====
+// PENTING: muat cache lokal dulu ke riwayatGlobal SEBELUM fetch data terbaru.
+// Kalau riwayatGlobal dibiarkan kosong, proses "pertahankan ceklis lokal"
+// di renderRiwayatList() gak ada yang bisa dicocokkan, jadi ceklis per-unit
+// yang sudah ditandai selalu hilang tiap kali halaman di-refresh.
+riwayatGlobal = JSON.parse(localStorage.getItem('riwayat') || '[]');
 loadRiwayat();
 
 </script>
