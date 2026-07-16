@@ -35,7 +35,6 @@
 
   <!-- PRODUK -->
   <div class="produk-container" id="produk-container"></div>
-  </div>
 
   <!-- RINCIAN -->
   <div class="rincian">
@@ -58,6 +57,7 @@
       <button onclick="bayar()">Simpan</button>
     </div>
   </div>
+</div>
 
 <!-- FOOTER NAVIGATION -->
 <div class="footer-nav">
@@ -72,24 +72,24 @@ if (!sessionStorage.getItem('pos_role')) {
 }
 </script>
 
-<!---note dwi: atas buat langsung otomatis ke login-->
-
 <!-- utils.js duluan sebelum script utama -->
 <script src="function/utils.js?v=1"></script>
 <script>authGuard();</script>
+
 <script>
-// Load produk dari Sheets dulu, baru baca dari localStorage
-loadProdukDariSheet(() => {
+// ==========================================
+// 1. DEKLARASI VARIABEL & FUNGSI GLOBAL
+// ==========================================
+// PENTING: semua fungsi HARUS di top-level (bukan di dalam callback lain
+// seperti loadProdukDariSheet), supaya bisa dipanggil dari onclick="..."
+// di HTML. onclick cuma bisa lihat fungsi yang ada di global/window scope.
 let produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
-
-if (produkList.length === 0) {
-  alert('Belum ada produk! Tambahkan produk di halaman Produk dulu.');
-}
-
 let cart = {};
 let curCat = 'semua';
 
-// ===== CLOCK =====
+// ==========================================
+// 2. JAM & TANGGAL HEADER
+// ==========================================
 function tick() {
   const now = new Date();
   document.getElementById('tgl-el').textContent = now.toLocaleDateString('id-ID', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
@@ -97,9 +97,12 @@ function tick() {
 }
 tick();
 setInterval(tick, 1000);
+
 document.getElementById('role-badge').textContent = (getRole() === 'kasir' ? '🧑‍💼 Kasir' : '👑 Owner');
 
-// ===== RENDER PRODUK =====
+// ==========================================
+// 3. RENDER PRODUK
+// ==========================================
 function renderProduk() {
   const list = curCat === 'semua' ? produkList : produkList.filter(p => p.cat === curCat);
   document.getElementById('produk-container').innerHTML = list.map(p => {
@@ -116,7 +119,9 @@ function renderProduk() {
   }).join('');
 }
 
-// ===== CART =====
+// ==========================================
+// 4. CART
+// ==========================================
 function addToCart(id) {
   const p = produkList.find(x => x.id == id);
   if (!p) return;
@@ -144,7 +149,9 @@ function clearCart() {
   renderRincian();
 }
 
-// ===== RENDER RINCIAN =====
+// ==========================================
+// 5. RENDER RINCIAN
+// ==========================================
 function renderRincian() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   let totalItem = 0, total = 0;
@@ -179,14 +186,29 @@ function renderRincian() {
   }).join('');
 }
 
-// ===== SIMPAN =====
+// ==========================================
+// 6. NOMOR TRANSAKSI (reset tiap hari baru)
+// ==========================================
+// Nomor transaksi HARUS unik dalam satu hari yang sama, tapi BOLEH
+// sama di hari yang berbeda (nomor mulai lagi dari 001 tiap hari baru).
 function generateNomorTransaksi() {
-  let n = parseInt(localStorage.getItem('nomorTransaksi') || '0');
-  n += 1;
-  localStorage.setItem('nomorTransaksi', String(n));
-  return String(n).padStart(3, '0');
+  const today = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  });
+
+  let data = JSON.parse(localStorage.getItem('nomorTransaksiData') || '{}');
+  if (data.tanggal !== today) {
+    data = { tanggal: today, counter: 0 };
+  }
+  data.counter += 1;
+  localStorage.setItem('nomorTransaksiData', JSON.stringify(data));
+
+  return String(data.counter).padStart(3, '0');
 }
 
+// ==========================================
+// 7. SIMPAN TRANSAKSI (lokal + kirim ke Sheets)
+// ==========================================
 function bayar() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   if (!ids.length) { showToast('Keranjang masih kosong!', 'error'); return; }
@@ -202,7 +224,7 @@ function bayar() {
     + ' ' + now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 
   // PENTING: harga di sini harga SATUAN (per unit), bukan dikali jumlah.
-  // Sheet/Apps Script yang menghitung total = harga * jumlah sendiri.
+  // Apps Script (action=simpanTransaksi) yang menghitung total = harga * jumlah sendiri.
   const items = ids.map(k => {
     const p = produkList.find(x => x.id == k);
     return { produk: p.nama, jumlah: cart[k], harga: p.harga };
@@ -231,7 +253,9 @@ function bayar() {
   showToast('Transaksi berhasil disimpan!', 'success');
 }
 
-// ===== KATEGORI =====
+// ==========================================
+// 8. KATEGORI
+// ==========================================
 document.querySelector('.kategori').addEventListener('click', e => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -241,8 +265,22 @@ document.querySelector('.kategori').addEventListener('click', e => {
   renderProduk();
 });
 
-renderProduk();
-renderRincian();
+// ==========================================
+// 9. INIT: RENDER DULUAN DARI CACHE, LALU UPDATE DARI SHEET
+// ==========================================
+if (produkList.length > 0) {
+  renderProduk();
+  renderRincian();
+}
+
+loadProdukDariSheet((success) => {
+  if (success) {
+    produkList = JSON.parse(localStorage.getItem('produk_list') || '[]');
+    renderProduk();
+    renderRincian();
+  } else if (produkList.length === 0) {
+    showToast('Belum ada produk! Tambahkan produk di halaman Produk dulu.', 'error');
+  }
 });
 </script>
 
