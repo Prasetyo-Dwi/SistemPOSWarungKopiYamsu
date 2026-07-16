@@ -6,7 +6,6 @@ const NAV_CONFIG = {
     { label: 'Transaksi',   file: 'index.html' },
     { label: 'Riwayat',     file: 'pages/riwayat.html' },
     { label: 'Pengeluaran', file: 'pages/pengeluaran.html' },
-    { label: 'Laporan',     file: 'pages/laporan.html' },
   ],
   owner: [
     { label: 'Produk',      file: 'pages/produk.html' },
