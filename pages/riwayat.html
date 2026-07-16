@@ -18,7 +18,7 @@
     <div class="header-top">
       <div>
         <div class="header-title">Riwayat</div>
-        <div class="header-sub">Transaksi hari ini</div>
+        <div class="header-sub" id="header-sub">Transaksi hari ini</div>
       </div>
       <div class="header-date">
         <div class="header-date-label" id="tgl-el">—</div>
@@ -30,6 +30,16 @@
     <div class="header-pemasukan">
       <span>Pemasukan hari ini</span>
       <span id="pemasukan-hari-ini">Rp 0</span>
+    </div>
+
+    <!-- FILTER TANGGAL -->
+    <div class="header-filter" style="display:flex;gap:8px;align-items:center;margin-top:12px;">
+      <input type="date" id="filter-tanggal" onchange="pilihTanggal(this.value)"
+        style="flex:1;min-width:0;padding:9px 10px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:white;font-family:'Poppins',sans-serif;font-size:13px;">
+      <button id="btn-mode-hariini" class="btn-mode-filter active" onclick="pilihHariIni()"
+        style="padding:9px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);background:white;color:#1e214f;font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Hari Ini</button>
+      <button id="btn-mode-semua" class="btn-mode-filter" onclick="pilihSemua()"
+        style="padding:9px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:white;font-family:'Poppins',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">Semua</button>
     </div>
 
     <!-- ACTIONS -->
@@ -71,6 +81,49 @@
 let riwayatGlobal = [];
 let editIndex     = -1;
 let itemsSebelumEdit = [];
+let modeFilter    = 'hariini'; // 'hariini' | 'tanggal' | 'semua'
+
+// ===== FILTER TANGGAL =====
+function updateModeButtons() {
+  const btnHariIni = document.getElementById('btn-mode-hariini');
+  const btnSemua   = document.getElementById('btn-mode-semua');
+  [btnHariIni, btnSemua].forEach(b => {
+    b.style.background = 'rgba(255,255,255,0.08)';
+    b.style.color = 'white';
+  });
+  if (modeFilter === 'semua') {
+    btnSemua.style.background = 'white';
+    btnSemua.style.color = '#1e214f';
+  } else {
+    btnHariIni.style.background = 'white';
+    btnHariIni.style.color = '#1e214f';
+  }
+}
+
+function pilihHariIni() {
+  modeFilter = 'hariini';
+  const today = new Date();
+  document.getElementById('filter-tanggal').value = today.toISOString().split('T')[0];
+  document.getElementById('header-sub').textContent = 'Transaksi hari ini';
+  updateModeButtons();
+  loadRiwayat();
+}
+
+function pilihTanggal(isoDate) {
+  if (!isoDate) return;
+  modeFilter = 'tanggal';
+  const [y, m, d] = isoDate.split('-');
+  document.getElementById('header-sub').textContent = `Transaksi tanggal ${d}/${m}/${y}`;
+  updateModeButtons();
+  loadRiwayat();
+}
+
+function pilihSemua() {
+  modeFilter = 'semua';
+  document.getElementById('header-sub').textContent = 'Semua transaksi';
+  updateModeButtons();
+  loadRiwayat();
+}
 
 // ===== CLOCK =====
 function tick() {
@@ -106,21 +159,30 @@ function hitungStorage() {
 
 // ===== LOAD RIWAYAT DARI SHEETS =====
 function loadRiwayat() {
-  fetch(`${SHEET_URL}?action=getRiwayat`)
+  let url = `${SHEET_URL}?action=getRiwayat`;
+  if (modeFilter === 'semua') {
+    url += '&semua=1';
+  } else if (modeFilter === 'tanggal') {
+    const isoDate = document.getElementById('filter-tanggal').value;
+    if (isoDate) url += '&tanggal=' + encodeURIComponent(isoDate);
+  }
+  // mode 'hariini': tidak kirim parameter tambahan, backend default ke hari ini
+
+  fetch(url)
     .then(res => res.json())
     .then(data => {
       if (data.status === 'ok' && data.riwayat) {
-        renderRiwayatList(data.riwayat);
+        renderRiwayatList(data.riwayat, !!data.semua);
       }
     })
     .catch(() => {
       const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-      renderRiwayatList(riwayat);
+      renderRiwayatList(riwayat, false);
     });
 }
 
 // ===== RENDER RIWAYAT LIST =====
-function renderRiwayatList(riwayat) {
+function renderRiwayatList(riwayat, isSemua) {
   // Pertahankan ceklis lokal (dibayarUnit) kalau nomor DAN tanggal transaksinya masih sama.
   // PENTING: nomor transaksi reset tiap hari, jadi mencocokkan nomor saja
   // bisa salah nempel ke transaksi hari lain yang kebetulan nomornya sama.
@@ -143,6 +205,8 @@ function renderRiwayatList(riwayat) {
   const list = document.getElementById('riwayat-list');
   document.getElementById('total-transaksi').textContent = riwayat.length + ' transaksi';
   hitungStorage();
+  // PENTING: pemasukan hari ini SELALU hitung hari ini yang sebenarnya,
+  // gak peduli lagi mode/tanggal apa yang lagi ditampilkan di list.
   document.getElementById('pemasukan-hari-ini').textContent = fmt(hitungPemasukanHariIni());
 
   if (riwayat.length === 0) {
@@ -150,9 +214,21 @@ function renderRiwayatList(riwayat) {
     return;
   }
 
+  let lastTanggal = null;
   list.innerHTML = riwayat.map((r, i) => {
-    const lunas = r.status === 'lunas' || r.status === 'tersimpan';
-    return `
+    let headerHtml = '';
+    if (isSemua && r.tanggal !== lastTanggal) {
+      headerHtml = `<div class="tanggal-divider" style="margin:18px 4px 8px;font-size:12px;font-weight:700;color:#6b7280;letter-spacing:0.03em;text-transform:uppercase;">${r.tanggal}</div>`;
+      lastTanggal = r.tanggal;
+    }
+    return headerHtml + renderRiwayatCard(r, i);
+  }).join('');
+}
+
+// ===== RENDER SATU KARTU TRANSAKSI =====
+function renderRiwayatCard(r, i) {
+  const lunas = r.status === 'lunas' || r.status === 'tersimpan';
+  return `
     <div class="riwayat-card" id="card-${i}">
       <div class="card-header" onclick="toggleCard(this)">
         <div class="card-header-left">
@@ -197,7 +273,6 @@ function renderRiwayatList(riwayat) {
       </div>
     </div>
   `;
-  }).join('');
 }
 
 // ===== RENDER ITEM PER UNIT + CEKLIS LOKAL =====
@@ -330,12 +405,6 @@ function bukaEdit(index) {
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
-
-  // Pengaman: pastikan tombol Simpan selalu normal tiap kali modal dibuka,
-  // jaga-jaga kalau ada state nyangkut dari edit sebelumnya.
-  const btnSimpanAwal = document.querySelector('.btn-modal-save');
-  if (btnSimpanAwal) { btnSimpanAwal.textContent = 'Simpan'; btnSimpanAwal.disabled = false; }
-
   document.getElementById('modal-edit-overlay').classList.add('active');
 }
 
@@ -441,10 +510,6 @@ async function simpanEdit() {
     riwayatGlobal[editIndex].items = itemsBaru;
     riwayatGlobal[editIndex].total = total;
     localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
-
-    // PENTING: reset tombol balik ke "Simpan" walau berhasil, supaya gak
-    // nyangkut "Menyimpan..." pas modal dibuka lagi lain kali.
-    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
 
     tutupModalEdit();
     loadRiwayat();
@@ -559,6 +624,8 @@ function tutupPicker() {
 // di renderRiwayatList() gak ada yang bisa dicocokkan, jadi ceklis per-unit
 // yang sudah ditandai selalu hilang tiap kali halaman di-refresh.
 riwayatGlobal = JSON.parse(localStorage.getItem('riwayat') || '[]');
+document.getElementById('filter-tanggal').value = new Date().toISOString().split('T')[0];
+updateModeButtons();
 loadRiwayat();
 
 </script>
