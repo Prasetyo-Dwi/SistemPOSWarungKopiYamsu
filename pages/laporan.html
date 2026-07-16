@@ -66,6 +66,16 @@
     padding: 12px 20px; line-height: 1.5;
   }
 
+  /* TOMBOL BUKA SPREADSHEET (di atas footer nav) */
+  .btn-sheet {
+    display: block; flex-shrink: 0; text-align: center; text-decoration: none;
+    margin: 0 16px 12px; padding: 12px; border-radius: 14px;
+    background: var(--white); color: var(--navy);
+    border: 1.5px solid var(--border); box-shadow: 0 3px 10px rgb(14, 209, 0);
+    font-size: 13px; font-weight: 600; transition: background 0.2s;
+  }
+  .btn-sheet:hover { background: var(--bg); }
+
   /* FOOTER NAV */
   .footer-nav {
     flex-shrink: 0; width: 100%; background: var(--navy); padding: 14px 0;
@@ -89,6 +99,10 @@
 <div class="scroll-area" id="isi-laporan">
   <div class="kosong-state">Memuat laporan...</div>
 </div>
+
+<a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/1xGUtsabt7FjGN5v0jy7COz3-5SBFz0vzBFlHwmMZsLM/edit" target="_blank">
+  Buka Spreadsheet
+</a>
 
 <div class="footer-nav">
   <div class="nav-item" data-page="transaksi"><p>Transaksi</p></div>
