@@ -187,37 +187,20 @@ function renderRincian() {
 }
 
 // ==========================================
-// 6. NOMOR TRANSAKSI (reset tiap hari baru)
+// 6. SIMPAN TRANSAKSI (nomor di-generate SERVER, bukan localStorage)
 // ==========================================
-// Nomor transaksi HARUS unik dalam satu hari yang sama, tapi BOLEH
-// sama di hari yang berbeda (nomor mulai lagi dari 001 tiap hari baru).
-function generateNomorTransaksi() {
-  const today = new Date().toLocaleDateString('id-ID', {
-    day: '2-digit', month: '2-digit', year: 'numeric'
-  });
-
-  let data = JSON.parse(localStorage.getItem('nomorTransaksiData') || '{}');
-  if (data.tanggal !== today) {
-    data = { tanggal: today, counter: 0 };
-  }
-  data.counter += 1;
-  localStorage.setItem('nomorTransaksiData', JSON.stringify(data));
-
-  return String(data.counter).padStart(3, '0');
-}
-
-// ==========================================
-// 7. SIMPAN TRANSAKSI (lokal + kirim ke Sheets)
-// ==========================================
-function bayar() {
+// PENTING: nomor transaksi TIDAK lagi dibuat di device ini. Server
+// (Apps Script) yang menentukan nomor berdasarkan sheet Riwayat — satu-
+// satunya sumber data yang sama-sama diakses semua device — supaya kalau
+// dipakai di laptop + HP sekaligus, nomornya gak pernah tabrakan.
+// Konsekuensinya: simpan transaksi sekarang BUTUH koneksi internet,
+// karena nomor yang valid cuma bisa didapat dari server.
+async function bayar() {
   const ids = Object.keys(cart).filter(k => cart[k] > 0);
   if (!ids.length) { showToast('Keranjang masih kosong!', 'error'); return; }
 
-  ids.forEach(k => {
-    const p = produkList.find(x => x.id == k);
-    if (p) p.stok = Math.max(0, p.stok - cart[k]);
-  });
-  localStorage.setItem('produk_list', JSON.stringify(produkList));
+  const btnSimpan = document.querySelector('.total-box button');
+  if (btnSimpan) { btnSimpan.textContent = 'Menyimpan...'; btnSimpan.disabled = true; }
 
   const now = new Date();
   const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric' })
@@ -230,31 +213,52 @@ function bayar() {
     return { produk: p.nama, jumlah: cart[k], harga: p.harga };
   });
 
-  const total = items.reduce((s, i) => s + i.harga * i.jumlah, 0);
-  const nomor = generateNomorTransaksi();
+  try {
+    const params = new URLSearchParams({
+      action:  'simpanTransaksi',
+      tanggal: tanggal,
+      items:   JSON.stringify(items)
+    });
 
-  // Simpan lokal dulu sebagai cache offline (langsung tampil walau belum online)
-  const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
-  riwayat.unshift({ tanggal, nomor, items, total, status: 'belum' });
-  localStorage.setItem('riwayat', JSON.stringify(riwayat));
+    const res  = await fetch(`${SHEET_URL}?${params}`);
+    const data = await res.json();
 
-  // Kirim transaksi ke Google Sheets supaya langsung muncul di halaman Riwayat
-  const params = new URLSearchParams({
-    action:  'simpanTransaksi',
-    tanggal: tanggal,
-    nomor:   nomor,
-    items:   JSON.stringify(items)
-  });
-  fetch(`${SHEET_URL}?${params}`, { mode: 'no-cors' }).catch(() => {});
+    if (data.status !== 'ok') {
+      showToast('Gagal simpan: ' + (data.message || 'Unknown error'), 'error');
+      if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+      return;
+    }
 
-  syncStokKeSheet(); // dari utils.js
+    const nomor = data.nomor; // nomor resmi dari server
 
-  clearCart();
-  showToast('Transaksi berhasil disimpan!', 'success');
+    // Baru kurangi stok & simpan ke cache lokal SETELAH server konfirmasi
+    // berhasil + kasih nomor resmi — supaya kalau gagal/offline, stok dan
+    // riwayat lokal gak ikut berubah padahal transaksinya gak beneran tersimpan.
+    ids.forEach(k => {
+      const p = produkList.find(x => x.id == k);
+      if (p) p.stok = Math.max(0, p.stok - cart[k]);
+    });
+    localStorage.setItem('produk_list', JSON.stringify(produkList));
+
+    const total = items.reduce((s, i) => s + i.harga * i.jumlah, 0);
+    const riwayat = JSON.parse(localStorage.getItem('riwayat') || '[]');
+    riwayat.unshift({ tanggal, nomor, items, total, status: 'belum' });
+    localStorage.setItem('riwayat', JSON.stringify(riwayat));
+
+    syncStokKeSheet(); // dari utils.js
+
+    clearCart();
+    showToast(`Transaksi #${nomor} berhasil disimpan!`, 'success');
+
+  } catch (err) {
+    showToast('Gagal terhubung ke server. Transaksi belum tersimpan.', 'error');
+  } finally {
+    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+  }
 }
 
 // ==========================================
-// 8. KATEGORI
+// 7. KATEGORI
 // ==========================================
 document.querySelector('.kategori').addEventListener('click', e => {
   const btn = e.target.closest('button');
@@ -266,7 +270,7 @@ document.querySelector('.kategori').addEventListener('click', e => {
 });
 
 // ==========================================
-// 9. INIT: RENDER DULUAN DARI CACHE, LALU UPDATE DARI SHEET
+// 8. INIT: RENDER DULUAN DARI CACHE, LALU UPDATE DARI SHEET
 // ==========================================
 if (produkList.length > 0) {
   renderProduk();
