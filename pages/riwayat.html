@@ -394,6 +394,14 @@ function bukaEdit(index) {
   itemsSebelumEdit = r.items.map(x => ({ ...x }));
 
   renderModalEdit(r.items);
+
+  // Pengaman: pastikan tombol Simpan selalu normal tiap kali modal dibuka,
+  // jaga-jaga kalau ada state nyangkut dari sesi edit sebelumnya (tombol
+  // ini letaknya di modal-footer, di luar area yang ikut di-render ulang
+  // lewat renderModalEdit, jadi kalau lupa direset di sini bisa nyangkut
+  // disabled selamanya dan bikin edit berikutnya kelihatan "stuck").
+  resetTombolSimpan();
+
   document.getElementById('modal-edit-overlay').classList.add('active');
 }
 
@@ -488,7 +496,7 @@ async function simpanEdit() {
 
     if (data.status !== 'ok') {
       alert('Gagal simpan: ' + (data.message || 'Unknown error'));
-      if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+      resetTombolSimpan();
       return;
     }
 
@@ -500,13 +508,24 @@ async function simpanEdit() {
     riwayatGlobal[editIndex].total = total;
     localStorage.setItem('riwayat', JSON.stringify(riwayatGlobal));
 
+    // PENTING: reset tombol balik ke "Simpan" walau berhasil, sebelum
+    // modal ditutup — supaya gak nyangkut "Menyimpan..." pas modal
+    // dibuka lagi lain kali.
+    resetTombolSimpan();
+
     tutupModalEdit();
     loadRiwayat();
 
   } catch (err) {
     alert('Error: ' + err.message);
-    if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
+    resetTombolSimpan();
   }
+}
+
+// ===== RESET TOMBOL SIMPAN KE KONDISI AWAL =====
+function resetTombolSimpan() {
+  const btnSimpan = document.querySelector('.btn-modal-save');
+  if (btnSimpan) { btnSimpan.textContent = 'Simpan'; btnSimpan.disabled = false; }
 }
 
 // ===== TUTUP MODAL EDIT =====
@@ -514,6 +533,7 @@ function tutupModalEdit() {
   document.getElementById('modal-edit-overlay').classList.remove('active');
   editIndex        = -1;
   itemsSebelumEdit = [];
+  resetTombolSimpan();
 }
 
 // ===== BUKA PILIH PRODUK =====
